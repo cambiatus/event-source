@@ -1,0 +1,17 @@
+{
+  "name": "demux",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "amqplib": "^0.5.2",
+    "demux": "^1.0.5",
+    "demux-eos": "^1.0.1"
+  }
+}
