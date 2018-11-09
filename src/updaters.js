@@ -18,22 +18,46 @@ function updateIssues(state, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Currency Issue -- Total: ${state.totalIssues}`)
 }
 
+function updateNewObjective(state, payload, blockInfo, context) {
+  console.log('TODO: IMPLEMENT updateNewObjective')
+}
+
+function updateNewAction(state, payload, blockInfo, context) {
+  console.log('TODO: IMPLEMENT updateNewAction')
+}
+
+function updateVerifyAction(state, payload, blockInfo, context) {
+  console.log('TODO: IMPLEMENT updateVerifyAction')
+}
+
 const updaters = [
   {
     actionType: "bespiralcom1::createcmm",
-    updater: updateTransferData,
+    updater: updateCreateCommunity
   },
   {
     actionType: "bespiralcom1::netlink",
-    updater: updateTransferData,
+    updater: updateNetlink
   },
   {
     actionType: "bespiralcom1::issue",
-    updater: updateTransferData,
+    updater: updateIssues
   },
   {
     actionType: "bespiralcom1::transfer",
-    updater: updateTransferData,
+    updater: updateTransferData
+  },
+  {
+    actionType: "bespiralcom1::newobjective",
+    updater: updateNewObjective
+  },
+  {
+    actionType: "bespiralcom1::newaction",
+    updater: updateNewAction
+  },
+  {
+    actionType: "bespiralcom1::verifyaction",
+    updater: updateVerifyAction
   },
 ]
 
