@@ -1,3 +1,5 @@
+const config = require('./config')
+
 function updateTransferData(state, payload, blockInfo, context) {
   state.totalTransfers += 1
   console.log(`BeSpiral >>> New Transfer -- Total: ${state.totalTransfers}`)
@@ -32,31 +34,31 @@ function updateVerifyAction(state, payload, blockInfo, context) {
 
 const updaters = [
   {
-    actionType: "bespiralcom1::createcmm",
+    actionType: `${config.blockchain.config}::createcmm`,
     updater: updateCreateCommunity
   },
   {
-    actionType: "bespiralcom1::netlink",
+    actionType: `${config.blockchain.config}::netlink`,
     updater: updateNetlink
   },
   {
-    actionType: "bespiralcom1::issue",
+    actionType: `${config.blockchain.contract}::issue`,
     updater: updateIssues
   },
   {
-    actionType: "bespiralcom1::transfer",
+    actionType: `${config.blockchain.contract}::transfer`,
     updater: updateTransferData
   },
   {
-    actionType: "bespiralcom1::newobjective",
+    actionType: `${config.blockchain.contract}::newobjective`,
     updater: updateNewObjective
   },
   {
-    actionType: "bespiralcom1::newaction",
+    actionType: `${config.blockchain.contract}::newaction`,
     updater: updateNewAction
   },
   {
-    actionType: "bespiralcom1::verifyaction",
+    actionType: `${config.blockchain.contract}::verifyaction`,
     updater: updateVerifyAction
   },
 ]

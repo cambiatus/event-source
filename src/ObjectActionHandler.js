@@ -1,4 +1,4 @@
-const amqp = require("./amqp")
+// const amqp = require("./amqp")
 const { AbstractActionHandler } = require("demux")
 
 // Initial state
@@ -14,22 +14,22 @@ const state = {
 class ObjectActionHandler extends AbstractActionHandler {
   async handleWithState(handle) {
 
-    const amqpSender = await amqp()
+    // const amqpSender = await amqp()
     const initialState = state
-    initialState.amqpSender = amqpSender
+    // initialState.amqpSender = amqpSender
 
     await handle(initialState)
   }
 
   async loadIndexState() {
-    console.info("Loading initial state >>> ", state.indexState)
+    // console.info("Loading initial state >>> ", state.indexState)
     return state.indexState
   }
 
   async updateIndexState(stateObj, block) {
     stateObj.indexState.blockNumber = block.blockInfo.blockNumber
     stateObj.indexState.blockHash = block.blockInfo.blockHash
-    console.info("Index state updated >>> ", state.indexState)
+    // console.info("Index state updated >>> ", state.indexState)
   }
 
   async rollbackTo(blockNumber) {

@@ -1,14 +1,12 @@
-const amqpConf = {
-  "address": "amqp://localhost",
-  "channel": "demux"
-}
+const config = require('./config.js')
 
 module.exports = async () => {
   const amqp = require('amqplib/callback_api')
 
   const amqpSetup = new Promise((resolve, reject) => {
-    amqp.connect(amqpConf.address, (err, conn) => {
-      if (err) reject(err)
+    amqp.connect(config.amqpConfig, (err, conn) => {
+      if (err) { reject(err); return }
+
       conn.createChannel(function(err, ch) {
         if (err) reject(err)
         resolve(ch)

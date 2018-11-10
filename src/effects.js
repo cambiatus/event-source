@@ -4,7 +4,7 @@ function amqpBroadcast(state, payload, blockInfo, context) {
 BeSpiral >>> New Action Broadcast ${JSON.stringify(payload, null, 2)}
 \n=======\n
   `)
-  state.amqp.sendToQueue(payload)
+  // state.amqp.sendToQueue(payload)
 }
 
 const effects = [

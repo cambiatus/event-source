@@ -1,3 +1,4 @@
+const config = require('./config')
 const { BaseActionWatcher } = require("demux")
 const { NodeosActionReader } = require("demux-eos")
 
@@ -5,10 +6,9 @@ const ObjectActionHandler = require("./ObjectActionHandler")
 const updaters = require("./updaters")
 const effects = require("./effects")
 
+
 const actionReader = new NodeosActionReader(
-  // "http://dev-chain.bespiral.io",
-  "http://localhost:8888",
-  1, // bespiral first cmm => 1768441
+  config.blockchain.url, config.blockchain.initialBlock
 )
 
 const actionHandler = new ObjectActionHandler(
