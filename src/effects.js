@@ -1,28 +1,29 @@
-function amqpBroadcast(state, payload, blockInfo, context) {
+const config = require('./config.js')
+
+function logAction(state, payload, blockInfo, context) {
   console.info(`
 \n=======\n
 BeSpiral >>> New Action Broadcast ${JSON.stringify(payload, null, 2)}
 \n=======\n
   `)
-  // state.amqp.sendToQueue(payload)
 }
 
 const effects = [
   {
-    actionType: "bespiralcom1::createcmm",
-    effect: amqpBroadcast,
+    actionType: `${config.blockchain.contract}::createcmm`,
+    effect: logAction
   },
   {
-    actionType: "bespiralcom1::netlink",
-    effect: amqpBroadcast,
+    actionType: `${config.blockchain.contract}::netlink`,
+    effect: logAction
   },
   {
-    actionType: "bespiralcom1::issue",
-    effect: amqpBroadcast,
+    actionType: `${config.blockchain.contract}::issue`,
+    effect: logAction
   },
   {
-    actionType: "bespiralcom1::transfer",
-    effect: amqpBroadcast,
+    actionType: `${config.blockchain.contract}::transfer`,
+    effect: logAction
   }
 ]
 

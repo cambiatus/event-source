@@ -1,7 +1,23 @@
 const config = require('./config')
 
-function updateTransferData(state, payload, blockInfo, context) {
+function updateTransferData(db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Transfer`)
+
+  const { amount, symbol } = parseToken(payload.data.value)
+
+  const transferData = {
+    from: payload.data.from,
+    to: payload.data.to,
+    amount: amount,
+    symbol: symbol,
+    memo: payload.data.memo,
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_at: blockInfo.timestamp,
+    created_eos_account: payload.authorization[0].actor
+  }
+
+  db.transfers.insert(transferData)
 }
 
 function updateCreateCommunity(db, payload, blockInfo) {
