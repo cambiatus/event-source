@@ -1,7 +1,7 @@
 {
-  "name": "demux",
+  "name": "event-source",
   "version": "1.0.0",
-  "description": "",
+  "description": "Event broker for BeSpiral smart contracts",
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
@@ -10,8 +10,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "amqplib": "^0.5.2",
-    "demux": "^1.0.5",
-    "demux-eos": "^1.0.1"
+    "demux": "^2.0.0",
+    "demux-eos": "^2.0.0",
+    "demux-postgres": "^2.0.0",
+    "massive": "^5.5.3"
   }
 }
