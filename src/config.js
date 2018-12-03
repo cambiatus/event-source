@@ -3,14 +3,14 @@ module.exports = {
     contract: 'bespiral',
     url: 'http://localhost:8888',
     // url: 'http://dev-chain.bespiral.io',
-    initialBlock: 1
+    initialBlock: 3600
   },
-  amqpConfig: {
-    protocol: 'amqp',
-    hostname: 'localhost',
-    port: 5672,
-    username: 'rabbitmq',
-    passowrd: 'rabbitmq',
-    vhost: '/'
+  db: {
+    user: process.env.DB_USER || 'user',
+    password: process.env.DB_PASSWORD || 'pass',
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    database: process.env.DB_NAME || 'eoslocal',
+    schema: process.env.DB_SCHEMA || 'public'
   }
 }
