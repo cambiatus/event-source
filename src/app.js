@@ -1,4 +1,4 @@
-const config = require('./config')
+const config = require(`./config/${process.env.NODE_ENV || 'dev'}`)
 const { BaseActionWatcher } = require('demux')
 const { NodeosActionReader } = require('demux-eos')
 const { MassiveActionHandler } = require('demux-postgres')
@@ -6,7 +6,6 @@ const massive = require('massive')
 
 const updaters = require('./updaters')
 const effects = require('./effects')
-
 
 async function init () {
   const actionReader = new NodeosActionReader(
