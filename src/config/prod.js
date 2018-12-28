@@ -1,15 +1,15 @@
 module.exports = {
   blockchain: {
-    contract: 'bespiral2',
-    url: 'http://localhost:8888',
+    contract: 'bespiral',
+    url: 'http://eosio.bespiral.io',
     initialBlock: 0
   },
   db: {
-    user: 'backend',
-    password: 'pass',
-    host: 'localhost',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    host: process.env.DB_HOST,
     port: 5432,
-    database: 'bespiral',
+    database: process.env.DB_DATABASE,
     schema: 'public'
   }
 }

@@ -1,4 +1,4 @@
-const config = require('./config')
+const config = require(`./config/${process.env.NODE_ENV || 'dev'}`)
 
 function updateTransferData(db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Transfer`)

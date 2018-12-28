@@ -2,7 +2,7 @@
 
 set -ux
 
-INSTANCE_IP="dev-api.bespiral.io"
+INSTANCE_IP="api.bespiral.io"
 
 function update_files()
 {
@@ -10,7 +10,7 @@ function update_files()
         --exclude='.git/' \
         --exclude='node_modules/' \
         -av "./" \
-        backend@"$INSTANCE_IP":~/event-source
+        ec2-user@"$INSTANCE_IP":~/event-source
 }
 
 update_files

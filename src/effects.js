@@ -1,4 +1,4 @@
-const config = require('./config.js')
+const config = require(`./config/${process.env.NODE_ENV || 'dev'}`)
 
 function logAction(state, payload, blockInfo, context) {
   console.info(`
