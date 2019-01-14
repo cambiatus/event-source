@@ -80,6 +80,26 @@ function updateNetlink(db, payload, blockInfo, context) {
   db.network.insert(data)
 }
 
+function updateNewSaleData(db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> New Sale`)
+
+  const { _, symbol } = parseToken(payload.data.quantity)
+  const price = parseTokenAmount(payload.data.quantity)
+
+  const data = {
+    account: payload.data.from,
+    title: payload.data.title,
+    description: payload.data.description,
+    price: price,
+    symbol: symbol,
+    rate: 0,
+    rate_count: 0,
+    image: payload.data.image,
+  }
+
+  db.shop.insert(data)
+}
+
 // function updateIssues(state, payload, blockInfo, context) {
 //   state.totalCommunities += 1
 //   // TODO: Add a `available_supply` on `communities` table and decrease it on every issue
@@ -125,7 +145,11 @@ const updaters = [
   {
     actionType: `${config.blockchain.contract}::transfer`,
     updater: updateTransferData
-  }//,
+  },
+  {
+    actionType: `${config.blockchain.contract}::newsale`,
+    updater: updateNewSaleData
+  } //,
   // {
   //   actionType: `${config.blockchain.contract}::newobjective`,
   //   updater: updateNewObjective

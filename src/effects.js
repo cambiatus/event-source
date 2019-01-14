@@ -24,6 +24,10 @@ const effects = [
   {
     actionType: `${config.blockchain.contract}::transfer`,
     effect: logAction
+  },
+  {
+    actionType: `${config.blockchain.contract}::newsale`,
+    effect: logAction
   }
 ]
 
