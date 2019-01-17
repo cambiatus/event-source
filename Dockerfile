@@ -1,5 +1,8 @@
 FROM node:11.6-alpine
 
+# Configure required environment
+ENV NODE_ENV prod
+
 # Intall system deps
 RUN apk --no-cache add --virtual native-deps build-base python2 postgresql-dev
 
