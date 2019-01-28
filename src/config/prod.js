@@ -1,8 +1,8 @@
 module.exports = {
   blockchain: {
-    contract: 'bespiral',
-    url: 'http://eosio.eoslocal.io:8888',
-    initialBlock: 1
+    contract: process.env.BLOCKCHAIN_CONTRACT,
+    url: process.env.BLOCKCHAIN_URL,
+    initialBlock: process.env.BLOCKCHAIN_INIT_BLOCK
   },
   db: {
     user: process.env.DB_USER,
