@@ -13,5 +13,8 @@ module.exports = {
     port: 5432,
     database: 'eoslocal',
     schema: 'public'
+  },
+  http: {
+    port: 3001
   }
 }

@@ -11,5 +11,8 @@ module.exports = {
     port: 5432,
     database: process.env.DB_DATABASE,
     schema: 'public'
+  },
+  http: {
+    port: process.env.EVENT_SOURCE_HTTP_PORT
   }
 }
