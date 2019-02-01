@@ -1,9 +1,11 @@
 const config = require(`./config/${process.env.NODE_ENV || 'dev'}`)
+const Sentry = require('@sentry/node');
+const { parseToken } = require('./eos_helper')
 
 function updateTransferData(db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Transfer`)
 
-  const { amount, symbol } = parseToken(payload.data.value)
+  const [ amount, symbol ] = parseToken(payload.data.value)
 
   const transferData = {
     from: payload.data.from,
@@ -18,12 +20,16 @@ function updateTransferData(db, payload, blockInfo, context) {
   }
 
   db.transfers.insert(transferData)
+    .catch(e => {
+      console.error('Something went wrong while updating transfer data', e)
+      Sentry.captureException(e);
+    })
 }
 
 function updateCreateCommunity(db, payload, blockInfo) {
   console.log(`BeSpiral >>> New Community`)
 
-  const { _, symbol } = parseToken(payload.data.max_supply)
+  const [ _, symbol ] = parseToken(payload.data.max_supply)
 
   const communityData = {
     symbol: symbol,
@@ -33,12 +39,12 @@ function updateCreateCommunity(db, payload, blockInfo) {
     logo: payload.data.logo,
     name: payload.data.title,
     description: payload.data.description,
-    supply: parseTokenAmount(payload.data.max_supply),
-    min_balance: parseTokenAmount(payload.data.min_balance),
-    inviter_reward: parseTokenAmount(payload.data.inviter_reward),
-    invited_reward: parseTokenAmount(payload.data.invited_reward),
+    supply: parseToken(payload.data.max_supply)[0],
+    min_balance: parseToken(payload.data.min_balance)[0],
+    inviter_reward: parseToken(payload.data.inviter_reward)[0],
+    invited_reward: parseToken(payload.data.invited_reward)[0],
     allow_subcommunity: payload.data.allow_subc == 1 ? true : false,
-    subcommunity_price: parseTokenAmount(payload.data.subc_price),
+    subcommunity_price: parseToken(payload.data.subc_price)[0],
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_at: blockInfo.timestamp,
@@ -47,6 +53,10 @@ function updateCreateCommunity(db, payload, blockInfo) {
 
   // create community
   db.communities.insert(communityData)
+    .catch(e => {
+      console.error('Something went wrong while updating transfer data', e)
+      Sentry.captureException(e);
+    })
 
   const networkData = {
     community_symbol: symbol,
@@ -60,12 +70,16 @@ function updateCreateCommunity(db, payload, blockInfo) {
 
   // invite community creator
   db.network.insert(networkData)
+    .catch(e => {
+      console.error('Something went wrong while updating transfer data', e)
+      Sentry.captureException(e);
+    })
 }
 
 function updateNetlink(db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Invites`)
 
-  const { _, symbol } = parseToken(payload.data.cmm_asset)
+  const [ _, symbol ] = parseToken(payload.data.cmm_asset)
 
   const data = {
     community_symbol: symbol,
@@ -78,13 +92,16 @@ function updateNetlink(db, payload, blockInfo, context) {
   }
 
   db.network.insert(data)
+    .catch(e => {
+      console.error('Something went wrong while updating transfer data', e)
+      Sentry.captureException(e);
+    })
 }
 
 function updateNewSaleData(db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Sale`)
 
-  const { _, symbol } = parseToken(payload.data.quantity)
-  const price = parseTokenAmount(payload.data.quantity)
+  const [ price, symbol ] = parseToken(payload.data.quantity)
 
   const data = {
     account: payload.data.from,
@@ -98,6 +115,10 @@ function updateNewSaleData(db, payload, blockInfo, context) {
   }
 
   db.shop.insert(data)
+    .catch(e => {
+      console.error('Something went wrong while updating transfer data', e)
+      Sentry.captureException(e);
+    })
 }
 
 // function updateIssues(state, payload, blockInfo, context) {
@@ -106,9 +127,11 @@ function updateNewSaleData(db, payload, blockInfo, context) {
 //   console.log(`BeSpiral >>> New Currency Issue -- Total: ${state.totalIssues}`)
 // }
 
-// function updateNewObjective(state, payload, blockInfo, context) {
-//   console.log('TODO: IMPLEMENT updateNewObjective')
-// }
+function updateNewObjective(state, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> New Objective`)
+
+  console.log('this is the data', payload.data)
+}
 
 // function updateNewAction(state, payload, blockInfo, context) {
 //   console.log('TODO: IMPLEMENT updateNewAction')
@@ -117,17 +140,6 @@ function updateNewSaleData(db, payload, blockInfo, context) {
 // function updateVerifyAction(state, payload, blockInfo, context) {
 //   console.log('TODO: IMPLEMENT updateVerifyAction')
 // }
-
-function parseToken(tokenString) {
-  const [amountString, symbol] = tokenString.split(" ")
-  const amount = parseFloat(amountString)
-  return { amount, symbol }
-}
-
-function parseTokenAmount(tokenString) {
-  const { amount, _symbol } = parseToken(tokenString)
-  return amount
-}
 
 const updaters = [
   {
@@ -149,11 +161,11 @@ const updaters = [
   {
     actionType: `${config.blockchain.contract}::newsale`,
     updater: updateNewSaleData
-  } //,
-  // {
-  //   actionType: `${config.blockchain.contract}::newobjective`,
-  //   updater: updateNewObjective
-  // },
+  },
+  {
+    actionType: `${config.blockchain.contract}::newobjective`,
+    updater: updateNewObjective
+  },
   // {
   //   actionType: `${config.blockchain.contract}::newaction`,
   //   updater: updateNewAction

@@ -7,9 +7,10 @@
     "start": "node src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Julien Lucca",
+  "license": "MIT",
   "dependencies": {
+    "@sentry/node": "^4.5.3",
     "demux": "^2.0.0",
     "demux-eos": "^2.0.0",
     "demux-postgres": "^2.0.0",
