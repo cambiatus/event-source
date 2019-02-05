@@ -10,9 +10,23 @@ const effects = require('./effects')
 const http = require('http')
 
 async function init () {
+
+  console.info(`BlockChain config:`)
+  console.info(`\tURL ${config.blockchain.url}`)
+  console.info(`\tCONTRACT ${config.blockchain.contract}`)
+  console.info(`\tBLOCK INIT ${config.blockchain.initialBlock}`)
+
   const actionReader = new NodeosActionReader(
     config.blockchain.url, config.blockchain.initialBlock
   )
+
+  console.info(`Database config:`)
+  console.info(`\tUSER ${config.db.user}`)
+  console.info(`\tPASS ${config.db.password}`)
+  console.info(`\tHOST ${config.db.host}`)
+  console.info(`\tPORT ${config.db.port}`)
+  console.info(`\tDATABASE ${config.db.database}`)
+  console.info(`\tSCHEMA ${config.db.schema}`)
 
   const db = await massive(config.db)
 
