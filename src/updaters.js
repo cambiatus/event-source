@@ -54,7 +54,7 @@ function updateCreateCommunity(db, payload, blockInfo) {
   // create community
   db.communities.insert(communityData)
     .catch(e => {
-      console.error('Something went wrong while updating transfer data', e)
+      console.error('Something went wrong while inserting a new community', e)
       Sentry.captureException(e);
     })
 
@@ -71,7 +71,23 @@ function updateCreateCommunity(db, payload, blockInfo) {
   // invite community creator
   db.network.insert(networkData)
     .catch(e => {
-      console.error('Something went wrong while updating transfer data', e)
+      console.error('Something went wrong while adding community creator to network', e)
+      Sentry.captureException(e);
+    })
+}
+
+function updateCommunityLogo(db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> Update community logo`, payload)
+
+  const [ _, symbol ] = parseToken(payload.data.cmm_asset)
+
+  const updateData = {
+    logo: payload.data.logo
+  }
+  // Find the community
+  db.communities.update({ symbol: symbol }, updateData)
+    .catch(e => {
+      console.error('Something went wrong while updating community logo', e)
       Sentry.captureException(e);
     })
 }
@@ -81,7 +97,7 @@ function updateNetlink(db, payload, blockInfo, context) {
 
   const [ _, symbol ] = parseToken(payload.data.cmm_asset)
 
-  const data = {
+  const networkData = {
     community_symbol: symbol,
     account: payload.data.new_user,
     invited_by: payload.authorization[0].actor,
@@ -91,9 +107,24 @@ function updateNetlink(db, payload, blockInfo, context) {
     created_eos_account: payload.authorization[0].actor
   }
 
-  db.network.insert(data)
+  db.network.insert(networkData)
     .catch(e => {
-      console.error('Something went wrong while updating transfer data', e)
+      console.error('Something went wrong while adding user to network table', e)
+      Sentry.captureException(e);
+    })
+
+  // Also create a profile
+  const profileData = {
+    account: payload.data.new_user,
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_at: blockInfo.timestamp,
+    created_eos_account: payload.authorization[0].actor
+  }
+
+  db.users.insert(profileData)
+    .catch(e => {
+      console.error('Something went wrong while adding user to users table', e)
       Sentry.captureException(e);
     })
 }
@@ -145,6 +176,10 @@ const updaters = [
   {
     actionType: `${config.blockchain.contract}::createcmm`,
     updater: updateCreateCommunity
+  },
+  {
+    actionType: `${config.blockchain.contract}::updatelogo`,
+    updater: updateCommunityLogo
   },
   {
     actionType: `${config.blockchain.contract}::netlink`,

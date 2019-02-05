@@ -42,7 +42,6 @@ function logExit (e) {
 Sentry.init({
   dsn: 'https://37bc03165eee4885b75ef58190be1c05@sentry.io/1385219',
   environment: process.env.NODE_ENV || 'dev',
-  debug: true,
   attachStacktrace: true
 })
 
