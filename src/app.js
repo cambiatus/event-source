@@ -8,6 +8,8 @@ const { MassiveActionHandler } = require('demux-postgres')
 const updaters = require('./updaters')
 const effects = []
 
+const http = require('http')
+
 async function init () {
   const actionReader = new NodeosActionReader(
     config.blockchain.url, config.blockchain.initialBlock
@@ -25,10 +27,19 @@ async function init () {
   const actionWatcher = new BaseActionWatcher(
     actionReader,
     actionHandler,
-    500,
+    500
   )
 
   actionWatcher.watch()
+
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' })
+    res.end('ok')
+  })
+
+  server.listen(config.http.port)
+
+  console.info(`Endpoint health is running in ${config.http.port} port`)
 }
 
 process.on("unhandledRejection", logExit)
