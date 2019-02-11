@@ -152,7 +152,7 @@ function updateNewSaleData(db, payload, blockInfo, context) {
     rate: 0,
     rate_count: 0,
     image: payload.data.image,
-    is_buy: payload.data.is_buy
+    is_buy: payload.data.is_buy === 1
   }
 
   db.shop.insert(data)
