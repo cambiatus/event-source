@@ -113,18 +113,27 @@ function updateNetlink(db, payload, blockInfo, context) {
       Sentry.captureException(e);
     })
 
-  // Also create a profile
-  const profileData = {
-    account: payload.data.new_user,
-    created_block: blockInfo.blockNumber,
-    created_tx: payload.transactionId,
-    created_at: blockInfo.timestamp,
-    created_eos_account: payload.authorization[0].actor
-  }
+  // Check if user isn't already created
+  db.users.count({account: payload.data.new_user})
+    .then(total => {
+      if (total === "0") {
+        const profileData = {
+          account: payload.data.new_user,
+          created_block: blockInfo.blockNumber,
+          created_tx: payload.transactionId,
+          created_at: blockInfo.timestamp,
+          created_eos_account: payload.authorization[0].actor
+        }
 
-  db.users.insert(profileData)
+        db.users.insert(profileData)
+          .catch(e => {
+            console.error('Something went wrong while adding user to users table', e)
+            Sentry.captureException(e);
+          })
+      }
+    })
     .catch(e => {
-      console.error('Something went wrong while adding user to users table', e)
+      console.error('Something went wrong while counting for existing users', e)
       Sentry.captureException(e);
     })
 }
@@ -143,6 +152,7 @@ function updateNewSaleData(db, payload, blockInfo, context) {
     rate: 0,
     rate_count: 0,
     image: payload.data.image,
+    is_buy: payload.data.is_buy
   }
 
   db.shop.insert(data)
