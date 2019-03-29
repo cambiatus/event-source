@@ -195,29 +195,52 @@ function updateIssue(db, payload, blockInfo, context) {
     })
 }
 
-// function updateNewObjective(db, payload, blockInfo, context) {
-//   console.log(`BeSpiral >>> New Objective`, payload.data)
+function updateNewObjective(db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> New Objective`)
 
-//   // Add to objective table
-//   const objectiveData = {
-//     community: payload.data.cmm_asset,
-//     description: payload.data.description,
-//     created_block: blockInfo.blockNumber,
-//     created_tx: payload.transactionId,
-//     created_at: blockInfo.timestamp,
-//     created_eos_account: payload.authorization[0].actor
-//   }
+  const [ _, symbol ] = parseToken(payload.data.cmm_asset)
+  // Add to objective table
+  const objectiveData = {
+    community_id: symbol,
+    creator_id: payload.data.creator,
+    description: payload.data.description,
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_at: blockInfo.timestamp,
+    created_eos_account: payload.authorization[0].actor
+  }
 
-//   db.objectives.insert(objectiveData)
-//     .catch(e => {
-//       console.error('Something went wrong creating objective', e)
-//       Sentry.captureException(e);
-//     })
-// }
+  db.community_objectives.insert(objectiveData)
+    .catch(e => {
+      console.error('Something went wrong creating objective', e)
+      Sentry.captureException(e);
+    })
+}
 
-// function updateNewAction(state, payload, blockInfo, context) {
-//   console.log(`BeSpiral >>> New Objective Action`, payload.data)
-// }
+function updateNewAction(db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> New Objective Action`, payload)
+
+  const [ rewardAmount, rewardSymbol ] = parseToken(payload.data.reward)
+  const [ verifierAmount, verifierSymbol ] = parseToken(payload.data.verifier_reward)
+
+  const data = {
+    community_objective_id: payload.data.objective_id + 1,
+    creator_id: payload.data.creator,
+    reward: rewardAmount,
+    verifier_reward: verifierAmount,
+    is_verified: false,
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_at: blockInfo.timestamp,
+    created_eos_account: payload.authorization[0].actor
+  }
+
+  db.community_objective_actions.insert(data)
+    .catch(e => {
+      console.error('Something went wrong creating objective', e)
+      Sentry.captureException(e);
+    })
+}
 
 // function updateVerifyAction(state, payload, blockInfo, context) {
 //   console.log('TODO: IMPLEMENT updateVerifyAction')
@@ -248,14 +271,14 @@ const updaters = [
     actionType: `${config.blockchain.contract}::newsale`,
     updater: updateNewSaleData
   },
-  // {
-  //   actionType: `${config.blockchain.contract}::newobjective`,
-  //   updater: updateNewObjective
-  // },
-  // {
-  //   actionType: `${config.blockchain.contract}::newaction`,
-  //   updater: updateNewAction
-  // },
+  {
+    actionType: `${config.blockchain.contract}::newobjective`,
+    updater: updateNewObjective
+  },
+  {
+    actionType: `${config.blockchain.contract}::newaction`,
+    updater: updateNewAction
+  },
   // {
   //   actionType: `${config.blockchain.contract}::verifyaction`,
   //   updater: updateVerifyAction

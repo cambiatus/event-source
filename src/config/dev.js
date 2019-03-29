@@ -3,7 +3,7 @@ module.exports = {
     contract: 'bespiral',
     // url: 'http://localhost:8888',
     url: 'http://eosio.bespiral.local',
-    // initialBlock: 6814
+    // initialBlock: 1
     initialBlock: 3580
   },
   db: {
