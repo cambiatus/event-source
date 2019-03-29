@@ -15,22 +15,23 @@ async function init () {
     config.blockchain.url, config.blockchain.initialBlock
   )
 
-  const db = await massive(config.db)
+  massive(config.db)
+    .then(db => {
+      console.info('Connected to postgres')
+      const actionHandler = new MassiveActionHandler(
+        updaters,
+        effects,
+        db,
+        config.db.schema
+      )
 
-  const actionHandler = new MassiveActionHandler(
-    updaters,
-    effects,
-    db,
-    config.db.schema
-  )
-
-  const actionWatcher = new BaseActionWatcher(
-    actionReader,
-    actionHandler,
-    500
-  )
-
-  actionWatcher.watch()
+      const actionWatcher = new BaseActionWatcher(
+        actionReader,
+        actionHandler,
+        500
+      )
+      actionWatcher.watch()
+    })
 
   const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' })
@@ -38,7 +39,6 @@ async function init () {
   })
 
   server.listen(config.http.port)
-
   console.info(`Endpoint health is running in ${config.http.port} port`)
 }
 

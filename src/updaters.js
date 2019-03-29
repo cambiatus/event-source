@@ -8,15 +8,15 @@ function updateTransferData(db, payload, blockInfo, context) {
   const [ amount, symbol ] = parseToken(payload.data.value)
 
   const transferData = {
-    from: payload.data.from,
-    to: payload.data.to,
+    from_id: payload.data.from,
+    to_id: payload.data.to,
     amount: amount,
-    symbol: symbol,
+    community_id: symbol,
     memo: payload.data.memo,
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
+    created_eos_account: payload.authorization[0].actor,
     created_at: blockInfo.timestamp,
-    created_eos_account: payload.authorization[0].actor
   }
 
   db.transfers.insert(transferData)
@@ -33,13 +33,14 @@ function updateCreateCommunity(db, payload, blockInfo) {
 
   const communityData = {
     symbol: symbol,
-    parent_community: payload.data.parent_community,
+    parent_community_id: payload.data.parent_community,
     issuer: payload.data.issuer,
     creator: payload.data.creator,
     logo: payload.data.logo,
     name: payload.data.title,
     description: payload.data.description,
-    supply: parseToken(payload.data.max_supply)[0],
+    supply: 0,
+    max_supply: parseToken(payload.data.max_supply)[0],
     min_balance: parseToken(payload.data.min_balance)[0],
     inviter_reward: parseToken(payload.data.inviter_reward)[0],
     invited_reward: parseToken(payload.data.invited_reward)[0],
@@ -47,37 +48,38 @@ function updateCreateCommunity(db, payload, blockInfo) {
     subcommunity_price: parseToken(payload.data.subc_price)[0],
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
-    created_at: blockInfo.timestamp,
-    created_eos_account: payload.authorization[0].actor
+    created_eos_account: payload.authorization[0].actor,
+    created_at: blockInfo.timestamp
   }
 
   // create community
   db.communities.insert(communityData)
+    .then(() => {
+      const networkData = {
+        community_id: symbol,
+        account_id: payload.data.creator,
+        invited_by_id: payload.data.creator,
+        created_block: blockInfo.blockNumber,
+        created_tx: payload.transactionId,
+        created_eos_account: payload.authorization[0].actor,
+        created_at: blockInfo.timestamp
+      }
+
+      // invite community creator
+      db.network.insert(networkData)
+        .catch(e => {
+          console.error('Something went wrong while adding community creator to network', e)
+          Sentry.captureException(e);
+        })
+    })
     .catch(e => {
       console.error('Something went wrong while inserting a new community', e)
-      Sentry.captureException(e);
-    })
-
-  const networkData = {
-    community_symbol: symbol,
-    account: payload.data.creator,
-    invited_by: payload.data.creator,
-    created_block: blockInfo.blockNumber,
-    created_tx: payload.transactionId,
-    created_at: blockInfo.timestamp,
-    created_eos_account: payload.authorization[0].actor
-  }
-
-  // invite community creator
-  db.network.insert(networkData)
-    .catch(e => {
-      console.error('Something went wrong while adding community creator to network', e)
       Sentry.captureException(e);
     })
 }
 
 function updateCommunityLogo(db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Update community logo`, payload)
+  console.log(`BeSpiral >>> Update community logo`)
 
   const [ _, symbol ] = parseToken(payload.data.cmm_asset)
 
@@ -93,44 +95,51 @@ function updateCommunityLogo(db, payload, blockInfo, context) {
 }
 
 function updateNetlink(db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Invites`)
-
-  const [ _, symbol ] = parseToken(payload.data.cmm_asset)
-
-  const networkData = {
-    community_symbol: symbol,
-    account: payload.data.new_user,
-    invited_by: payload.authorization[0].actor,
-    created_block: blockInfo.blockNumber,
-    created_tx: payload.transactionId,
-    created_at: blockInfo.timestamp,
-    created_eos_account: payload.authorization[0].actor
-  }
-
-  db.network.insert(networkData)
-    .catch(e => {
-      console.error('Something went wrong while adding user to network table', e)
-      Sentry.captureException(e);
-    })
+  console.log(`BeSpiral >>> New Netlink`)
 
   // Check if user isn't already created
   db.users.count({account: payload.data.new_user})
     .then(total => {
-      if (total === "0") {
-        const profileData = {
-          account: payload.data.new_user,
-          created_block: blockInfo.blockNumber,
-          created_tx: payload.transactionId,
-          created_at: blockInfo.timestamp,
-          created_eos_account: payload.authorization[0].actor
-        }
+      const profileData = {
+        account: payload.data.new_user,
+        created_block: blockInfo.blockNumber,
+        created_tx: payload.transactionId,
+        created_eos_account: payload.authorization[0].actor,
+        created_at: blockInfo.timestamp
+      }
 
+      if (total === "0") {
         db.users.insert(profileData)
           .catch(e => {
-            console.error('Something went wrong while adding user to users table', e)
+            console.error('Something went wrong while inserting user', e)
+            Sentry.captureException(e);
+          })
+      } else {
+        db.users.update(profileData)
+          .catch(e => {
+            console.error('Something went wrong while updating user', e)
             Sentry.captureException(e);
           })
       }
+    })
+    .then(() => {
+      const [ _, symbol ] = parseToken(payload.data.cmm_asset)
+
+      const networkData = {
+        community_id: symbol,
+        account_id: payload.data.new_user,
+        invited_by_id: payload.authorization[0].actor,
+        created_block: blockInfo.blockNumber,
+        created_tx: payload.transactionId,
+        created_eos_account: payload.authorization[0].actor,
+        created_at: blockInfo.timestamp
+      }
+
+      db.network.insert(networkData)
+        .catch(e => {
+          console.error('Something went wrong while adding user to network table', e)
+          Sentry.captureException(e);
+        })
     })
     .catch(e => {
       console.error('Something went wrong while counting for existing users', e)
@@ -144,15 +153,17 @@ function updateNewSaleData(db, payload, blockInfo, context) {
   const [ price, symbol ] = parseToken(payload.data.quantity)
 
   const data = {
-    account: payload.data.from,
+    community_id: symbol,
     title: payload.data.title,
     description: payload.data.description,
     price: price,
-    symbol: symbol,
     rate: 0,
-    rate_count: 0,
     image: payload.data.image,
-    is_buy: payload.data.is_buy === 1
+    is_buy: payload.data.is_buy === 1,
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_eos_account: payload.authorization[0].actor,
+    created_at: blockInfo.timestamp
   }
 
   db.shop.insert(data)
@@ -162,20 +173,50 @@ function updateNewSaleData(db, payload, blockInfo, context) {
     })
 }
 
-// function updateIssues(state, payload, blockInfo, context) {
-//   state.totalCommunities += 1
-//   // TODO: Add a `available_supply` on `communities` table and decrease it on every issue
-//   console.log(`BeSpiral >>> New Currency Issue -- Total: ${state.totalIssues}`)
-// }
+function updateIssue(db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> New Issue`)
 
-function updateNewObjective(state, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Objective`)
+  const [ amount, symbol ] = parseToken(payload.data.quantity)
+  const data = {
+    community_id: symbol,
+    to_id: payload.data.to,
+    quantity: amount,
+    memo: payload.data.memo,
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_eos_account: payload.authorization[0].actor,
+    created_at: blockInfo.timestamp
+  }
 
-  console.log('this is the data', payload.data)
+  db.community_mints.insert(data)
+    .catch(e => {
+      console.error('Something went wrong while adding mint to community_mints table', e)
+      Sentry.captureException(e);
+    })
 }
 
+// function updateNewObjective(db, payload, blockInfo, context) {
+//   console.log(`BeSpiral >>> New Objective`, payload.data)
+
+//   // Add to objective table
+//   const objectiveData = {
+//     community: payload.data.cmm_asset,
+//     description: payload.data.description,
+//     created_block: blockInfo.blockNumber,
+//     created_tx: payload.transactionId,
+//     created_at: blockInfo.timestamp,
+//     created_eos_account: payload.authorization[0].actor
+//   }
+
+//   db.objectives.insert(objectiveData)
+//     .catch(e => {
+//       console.error('Something went wrong creating objective', e)
+//       Sentry.captureException(e);
+//     })
+// }
+
 // function updateNewAction(state, payload, blockInfo, context) {
-//   console.log('TODO: IMPLEMENT updateNewAction')
+//   console.log(`BeSpiral >>> New Objective Action`, payload.data)
 // }
 
 // function updateVerifyAction(state, payload, blockInfo, context) {
@@ -195,10 +236,10 @@ const updaters = [
     actionType: `${config.blockchain.contract}::netlink`,
     updater: updateNetlink
   },
-  // {
-  //   actionType: `${config.blockchain.contract}::issue`,
-  //   updater: updateIssues
-  // },
+  {
+    actionType: `${config.blockchain.contract}::issue`,
+    updater: updateIssue
+  },
   {
     actionType: `${config.blockchain.contract}::transfer`,
     updater: updateTransferData
@@ -207,10 +248,10 @@ const updaters = [
     actionType: `${config.blockchain.contract}::newsale`,
     updater: updateNewSaleData
   },
-  {
-    actionType: `${config.blockchain.contract}::newobjective`,
-    updater: updateNewObjective
-  },
+  // {
+  //   actionType: `${config.blockchain.contract}::newobjective`,
+  //   updater: updateNewObjective
+  // },
   // {
   //   actionType: `${config.blockchain.contract}::newaction`,
   //   updater: updateNewAction

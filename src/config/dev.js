@@ -1,17 +1,17 @@
 module.exports = {
   blockchain: {
     contract: 'bespiral',
-    url: 'http://localhost:8888',
-    // url: 'http://dev-chain.bespiral.io',
-    // initialBlock: 3600
-    initialBlock: 210000
+    // url: 'http://localhost:8888',
+    url: 'http://eosio.bespiral.local',
+    // initialBlock: 6814
+    initialBlock: 3580
   },
   db: {
-    user: 'user',
-    password: 'pass',
+    user: 'lucca',
+    password: '',
     host: 'localhost',
     port: 5432,
-    database: 'eoslocal',
+    database: 'bespiral_prod',
     schema: 'public'
   },
   http: {

@@ -14,7 +14,7 @@
     "demux": "^2.0.0",
     "demux-eos": "^2.0.0",
     "demux-postgres": "^2.0.0",
-    "massive": "^5.5.3",
+    "massive": "^5.7.7",
     "pg-native": "^3.0.0"
   }
 }
