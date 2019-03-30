@@ -14,6 +14,7 @@ async function init () {
   const actionReader = new NodeosActionReader(
     config.blockchain.url, config.blockchain.initialBlock
   )
+  console.info(`Querying EOS node on ${config.blockchain.url}`)
 
   massive(config.db)
     .then(db => {
