@@ -21,6 +21,5 @@ push: ## Push the image to docker repository
 run: ## Run the app in Docker
 	docker run \
 		--env-file docker.env \
-		--expose 80 -p 80:80 \
-		--name bespiral-frontend \
+		--name bespiral-event-source \
 		--rm -it $(IMAGE_NAME):latest

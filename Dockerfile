@@ -10,7 +10,7 @@ RUN apk --no-cache add --virtual native-deps build-base python2 postgresql-dev
 COPY . .
 
 # Remove deps
-RUN rm node_modules -Rf
+RUN rm node_modules docker.env -Rf
 
 # Install deps
 RUN npm install

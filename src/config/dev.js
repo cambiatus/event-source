@@ -1,3 +1,4 @@
+console.log('Loaded Dev configs')
 module.exports = {
   blockchain: {
     contract: 'bespiral',
