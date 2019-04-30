@@ -1,18 +1,20 @@
 console.log('Loaded Dev configs')
 module.exports = {
   blockchain: {
-    contract: 'bespiral',
-    // url: 'http://localhost:8888',
+    contract: {
+      token: 'bes.token',
+      community: 'bes.cmm'
+    },
     url: 'http://eosio.bespiral.local',
-    // initialBlock: 1
-    initialBlock: 3580
+    initialBlock: 1
+    // initialBlock: 3580
   },
   db: {
     user: 'lucca',
     password: '',
     host: 'localhost',
     port: 5432,
-    database: 'bespiral_prod',
+    database: 'bespiral_dev',
     schema: 'public'
   },
   http: {
