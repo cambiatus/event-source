@@ -6,7 +6,10 @@ const initialBlock = (typeof process.env.BLOCKCHAIN_INIT_BLOCK === "string") ?
 
 module.exports = {
   blockchain: {
-    contract: process.env.BLOCKCHAIN_CONTRACT,
+    contract: {
+      token: process.env.BLOCKCHAIN_TOKEN_CONTRACT,
+      community: process.env.BLOCKCHAIN_COMMUNITY_CONTRACT
+    },
     url: process.env.BLOCKCHAIN_URL,
     initialBlock: initialBlock
   },

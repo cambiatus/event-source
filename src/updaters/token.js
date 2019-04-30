@@ -1,4 +1,5 @@
 const Sentry = require('@sentry/node');
+const { parseToken } = require('../eos_helper')
 
 function createToken(db, payload, blockInfo, context) {
 }
@@ -6,7 +7,7 @@ function createToken(db, payload, blockInfo, context) {
 function transfer(db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Transfer`)
 
-  const [ amount, symbol ] = parseToken(payload.data.value)
+  const [ amount, symbol ] = parseToken(payload.data.quantity)
 
   const transferData = {
     from_id: payload.data.from,

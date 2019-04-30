@@ -1,10 +1,10 @@
 const Sentry = require('@sentry/node');
-const { parseToken } = require('./eos_helper')
+const { parseToken } = require('../eos_helper')
 
 function createCommunity(db, payload, blockInfo) {
   console.log(`BeSpiral >>> Create Community`)
 
-  const [ _, symbol ] = parseToken(payload.data.max_supply)
+  const [ _, symbol ] = parseToken(payload.data.cmm_asset)
 
   const communityData = {
     symbol: symbol,
