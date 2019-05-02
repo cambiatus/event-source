@@ -1,6 +1,6 @@
 {
   "name": "event-source",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Event broker for BeSpiral smart contracts",
   "main": "src/app.js",
   "scripts": {
