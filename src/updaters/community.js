@@ -137,6 +137,7 @@ function createSale(db, payload, blockInfo, context) {
     image: payload.data.image,
     units: payload.data.units,
     is_buy: payload.data.is_buy === 1,
+    creator_id: payload.data.from,
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
