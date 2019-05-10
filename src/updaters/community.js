@@ -143,7 +143,7 @@ function createSale(db, payload, blockInfo, context) {
     created_at: blockInfo.timestamp
   }
 
-  db.shop.insert(data)
+  db.sales.insert(data)
     .catch(e => {
       console.error('Something went wrong while updating transfer data', e)
       Sentry.captureException(e);
