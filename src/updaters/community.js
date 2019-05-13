@@ -155,6 +155,7 @@ function newObjective(db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Objective`)
 
   const [ _, symbol ] = parseToken(payload.data.cmm_asset)
+
   // Add to objective table
   const objectiveData = {
     community_id: symbol,
@@ -182,6 +183,7 @@ function newAction(db, payload, blockInfo, context) {
   const data = {
     community_objective_id: payload.data.objective_id + 1,
     creator_id: payload.data.creator,
+    description: payload.data.description,
     reward: rewardAmount,
     verifier_reward: verifierAmount,
     is_verified: false,
