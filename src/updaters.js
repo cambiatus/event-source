@@ -1,6 +1,13 @@
 const config = require(`./config/${process.env.NODE_ENV || 'dev'}`)
 const { parseToken } = require('./eos_helper')
-const { createCommunity, updateCommunity, netlink, createSale, newObjective, newAction, verifyAction } = require('./updaters/community.js')
+const { createCommunity,
+        updateCommunity,
+        netlink,
+        createSale,
+        transferSale,
+        newObjective,
+        newAction,
+        verifyAction } = require('./updaters/community.js')
 const { createToken, transfer, issue, retire, setExpiry } = require('./updaters/token.js')
 
 const updaters = [
@@ -32,6 +39,10 @@ const updaters = [
   {
     actionType: `${config.blockchain.contract.community}::createsale`,
     updater: createSale
+  },
+  {
+    actionType: `${config.blockchain.contract.community}::transfersale`,
+    updater: transferSale
   },
 
   // ======== Token

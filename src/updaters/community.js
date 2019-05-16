@@ -151,6 +151,33 @@ function createSale(db, payload, blockInfo, context) {
     })
 }
 
+function transferSale(db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> New Transfer Sale`)
+
+  const [ price, symbol ] = parseToken(payload.data.quantity)
+
+  // find sale
+  // Decrease units
+  db.withTransaction(tx => {
+    return tx.sales.findOne(payload.data.id)
+      .then(sale => {
+        const updateData = {
+          units: sale.units - payload.data.units
+        }
+
+        tx.sales.update({ id: sale.id }, updateData)
+          .catch(e => {
+            console.error('Something went wrong while updating sale units', e)
+            Sentry.captureException(e);
+          })
+      })
+      .catch(e => {
+        console.error('Something went wrong while looking for the sale', e)
+        Sentry.captureException(e);
+      })
+  })
+}
+
 function newObjective(db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Objective`)
 
@@ -200,15 +227,16 @@ function newAction(db, payload, blockInfo, context) {
     })
 }
 
-function verifyAction(state, payload, blockInfo, context) {
+function verifyAction(db, payload, blockInfo, context) {
 }
 
 module.exports = {
   createCommunity: createCommunity,
   updateCommunity: updateCommunity,
   netlink: netlink,
-  createSale: createSale,
   newObjective: newObjective,
   newAction: newAction,
-  verifyAction: verifyAction
+  verifyAction: verifyAction,
+  createSale: createSale,
+  transferSale: transferSale
 }
