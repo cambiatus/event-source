@@ -1,10 +1,12 @@
 const Sentry = require('@sentry/node');
-const { parseToken } = require('../eos_helper')
+const {
+  parseToken
+} = require('../eos_helper')
 
 function createCommunity(db, payload, blockInfo) {
   console.log(`BeSpiral >>> Create Community`)
 
-  const [ _, symbol ] = parseToken(payload.data.cmm_asset)
+  const [_, symbol] = parseToken(payload.data.cmm_asset)
 
   const communityData = {
     symbol: symbol,
@@ -50,7 +52,7 @@ function createCommunity(db, payload, blockInfo) {
 function updateCommunity(db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> Update community logo`)
 
-  const [ _, symbol ] = parseToken(payload.data.cmm_asset)
+  const [_, symbol] = parseToken(payload.data.cmm_asset)
 
   const updateData = {
     symbol: symbol,
@@ -63,7 +65,9 @@ function updateCommunity(db, payload, blockInfo, context) {
   }
 
   // Find the community
-  db.communities.update({ symbol: symbol }, updateData)
+  db.communities.update({
+      symbol: symbol
+    }, updateData)
     .catch(e => {
       console.error('Something went wrong while updating community logo', e)
       Sentry.captureException(e);
@@ -74,7 +78,9 @@ function netlink(db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Netlink`)
 
   // Check if user isn't already created
-  db.users.count({account: payload.data.new_user})
+  db.users.count({
+      account: payload.data.new_user
+    })
     .then(total => {
       const profileData = {
         account: payload.data.new_user,
@@ -90,16 +96,10 @@ function netlink(db, payload, blockInfo, context) {
             console.error('Something went wrong while inserting user', e)
             Sentry.captureException(e);
           })
-      } else {
-        db.users.update(profileData)
-          .catch(e => {
-            console.error('Something went wrong while updating user', e)
-            Sentry.captureException(e);
-          })
       }
     })
     .then(() => {
-      const [ _, symbol ] = parseToken(payload.data.cmm_asset)
+      const [_, symbol] = parseToken(payload.data.cmm_asset)
 
       const networkData = {
         community_id: symbol,
@@ -126,7 +126,7 @@ function netlink(db, payload, blockInfo, context) {
 function createSale(db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Sale`)
 
-  const [ price, symbol ] = parseToken(payload.data.quantity)
+  const [price, symbol] = parseToken(payload.data.quantity)
 
   const data = {
     community_id: symbol,
@@ -154,18 +154,36 @@ function createSale(db, payload, blockInfo, context) {
 function transferSale(db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Transfer Sale`)
 
-  const [ price, symbol ] = parseToken(payload.data.quantity)
+  const [amount, symbol] = parseToken(payload.data.quantity)
 
-  // find sale
-  // Decrease units
   db.withTransaction(tx => {
+    // Find Sale
     return tx.sales.findOne(payload.data.id)
       .then(sale => {
+        // Decrease units
         const updateData = {
-          units: sale.units - payload.data.units
+          units: sale.units - parseInt(payload.data.units)
         }
 
-        tx.sales.update({ id: sale.id }, updateData)
+        tx.sales.update({
+            id: sale.id
+          }, updateData)
+          .catch(e => {
+            console.error('Something went wrong while updating sale units', e)
+            Sentry.captureException(e);
+          })
+
+        // Insert payload into sale_history
+        const insertData = {
+          sale_id: payload.data.id,
+          from_id: payload.data.from,
+          to_id: payload.data.to,
+          amount: amount,
+          units: payload.data.units,
+          community_id: symbol
+        }
+
+        tx.sale_history.insert(insertData)
           .catch(e => {
             console.error('Something went wrong while updating sale units', e)
             Sentry.captureException(e);
@@ -181,7 +199,7 @@ function transferSale(db, payload, blockInfo, context) {
 function newObjective(db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Objective`)
 
-  const [ _, symbol ] = parseToken(payload.data.cmm_asset)
+  const [_, symbol] = parseToken(payload.data.cmm_asset)
 
   // Add to objective table
   const objectiveData = {
@@ -202,13 +220,13 @@ function newObjective(db, payload, blockInfo, context) {
 }
 
 function newAction(db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Objective Action`, payload)
+  console.log(`BeSpiral >>> New Objective Action`)
 
-  const [ rewardAmount, rewardSymbol ] = parseToken(payload.data.reward)
-  const [ verifierAmount, verifierSymbol ] = parseToken(payload.data.verifier_reward)
+  const [rewardAmount, rewardSymbol] = parseToken(payload.data.reward)
+  const [verifierAmount, verifierSymbol] = parseToken(payload.data.verifier_reward)
 
   const data = {
-    community_objective_id: payload.data.objective_id + 1,
+    community_objective_id: parseInt(payload.data.objective_id) + 1,
     creator_id: payload.data.creator,
     description: payload.data.description,
     reward: rewardAmount,
@@ -227,8 +245,7 @@ function newAction(db, payload, blockInfo, context) {
     })
 }
 
-function verifyAction(db, payload, blockInfo, context) {
-}
+function verifyAction(db, payload, blockInfo, context) {}
 
 module.exports = {
   createCommunity: createCommunity,
