@@ -4,7 +4,7 @@
   "description": "Event broker for BeSpiral smart contracts",
   "main": "src/app.js",
   "scripts": {
-    "start": "node src/app.js",
+    "start": "standard && node src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Julien Lucca",
