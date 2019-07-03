@@ -5,6 +5,7 @@
   "main": "src/app.js",
   "scripts": {
     "start": "standard && node src/app.js",
+    "format": "standard",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Julien Lucca",
