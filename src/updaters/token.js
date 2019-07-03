@@ -1,10 +1,10 @@
-const Sentry = require('@sentry/node');
+const Sentry = require('@sentry/node')
 const { parseToken } = require('../eos_helper')
 
-function createToken(db, payload, blockInfo, context) {
+function createToken (db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> Create Token`)
 
-  const [ _, symbol ] = parseToken(payload.data.max_supply)
+  const [, symbol] = parseToken(payload.data.max_supply)
 
   const updateData = {
     symbol: symbol,
@@ -14,14 +14,15 @@ function createToken(db, payload, blockInfo, context) {
     type: payload.data.type
   }
 
-  db.communities.update({ symbol: symbol }, updateData)
+  db.communities
+    .update({ symbol: symbol }, updateData)
     .catch(e => {
       console.error('Something went wrong while updating community logo', e)
-      Sentry.captureException(e);
+      Sentry.captureException(e)
     })
 }
 
-function transfer(db, payload, blockInfo, context) {
+function transfer (db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Transfer`)
 
   const [ amount, symbol ] = parseToken(payload.data.quantity)
@@ -35,17 +36,18 @@ function transfer(db, payload, blockInfo, context) {
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
-    created_at: blockInfo.timestamp,
+    created_at: blockInfo.timestamp
   }
 
-  db.transfers.insert(transferData)
+  db.transfers
+    .insert(transferData)
     .catch(e => {
       console.error('Something went wrong while updating transfer data', e)
-      Sentry.captureException(e);
+      Sentry.captureException(e)
     })
 }
 
-function issue(db, payload, blockInfo, context) {
+function issue (db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Issue`)
 
   const [ amount, symbol ] = parseToken(payload.data.quantity)
@@ -60,21 +62,22 @@ function issue(db, payload, blockInfo, context) {
     created_at: blockInfo.timestamp
   }
 
-  db.community_mints.insert(data)
+  db.community_mints
+    .insert(data)
     .catch(e => {
       console.error('Something went wrong while adding mint to community_mints table', e)
-      Sentry.captureException(e);
+      Sentry.captureException(e)
     })
 }
 
-function retire(db, payload, blockInfo, context) {}
+function retire (db, payload, blockInfo, context) {}
 
-function setExpiry(db, payload, blockInfo, context) {}
+function setExpiry (db, payload, blockInfo, context) {}
 
 module.exports = {
-  createToken: createToken,
-  transfer: transfer,
-  issue: issue,
-  retire: retire,
-  setexpiry: setExpiry
+  createToken,
+  transfer,
+  issue,
+  retire,
+  setExpiry
 }
