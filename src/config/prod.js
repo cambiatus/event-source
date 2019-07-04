@@ -1,8 +1,8 @@
 console.log('Loaded Prod configs')
 
-const initialBlock = (typeof process.env.BLOCKCHAIN_INIT_BLOCK === "string") ?
-      parseInt(process.env.BLOCKCHAIN_INIT_BLOCK) :
-      process.env.BLOCKCHAIN_INIT_BLOCK
+const initialBlock = (typeof process.env.BLOCKCHAIN_INIT_BLOCK === 'string')
+  ? parseInt(process.env.BLOCKCHAIN_INIT_BLOCK)
+  : process.env.BLOCKCHAIN_INIT_BLOCK
 
 module.exports = {
   blockchain: {

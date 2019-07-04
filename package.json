@@ -1,10 +1,11 @@
 {
   "name": "event-source",
-  "version": "1.2.2",
+  "version": "1.3.0",
   "description": "Event broker for BeSpiral smart contracts",
   "main": "src/app.js",
   "scripts": {
-    "start": "node src/app.js",
+    "start": "standard && node src/app.js",
+    "format": "standard",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Julien Lucca",
@@ -16,5 +17,8 @@
     "demux-postgres": "^2.0.0",
     "massive": "^5.7.7",
     "pg-native": "^3.0.0"
+  },
+  "devDependencies": {
+    "standard": "^12.0.1"
   }
 }
