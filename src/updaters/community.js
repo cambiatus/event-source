@@ -4,6 +4,7 @@ const {
 const {
   parseToken
 } = require('../eos_helper')
+const crypto = require('crypto')
 
 function createCommunity (db, payload, blockInfo) {
   console.log(`BeSpiral >>> Create Community`)
@@ -329,6 +330,13 @@ function newAction (db, payload, blockInfo, context) {
 }
 
 function verifyAction (db, payload, blockInfo, context) {}
+
+function toSha256 (message) {
+  return crypto
+    .createHash('sha256')
+    .update(message)
+    .digest('hex')
+}
 
 module.exports = {
   createCommunity,
