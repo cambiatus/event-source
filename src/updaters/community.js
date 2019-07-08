@@ -1,4 +1,7 @@
-const Sentry = require('@sentry/node')
+const {
+  logError,
+  toSha256
+} = require('../utils')
 const {
   parseToken
 } = require('../eos_helper')
@@ -40,15 +43,9 @@ function createCommunity (db, payload, blockInfo) {
       // invite community creator
       db.network
         .insert(networkData)
-        .catch(e => {
-          console.error('Something went wrong while adding community creator to network', e)
-          Sentry.captureException(e)
-        })
+        .catch(logError('Something went wrong while adding community creator to network'))
     })
-    .catch(e => {
-      console.error('Something went wrong while inserting a new community', e)
-      Sentry.captureException(e)
-    })
+    .catch(logError('Something went wrong while inserting a new community'))
 }
 
 function updateCommunity (db, payload, blockInfo, context) {
@@ -71,10 +68,7 @@ function updateCommunity (db, payload, blockInfo, context) {
     .update({
       symbol: symbol
     }, updateData)
-    .catch(e => {
-      console.error('Something went wrong while updating community logo', e)
-      Sentry.captureException(e)
-    })
+    .catch(logError('Something went wrong while updating community logo'))
 }
 
 function netlink (db, payload, blockInfo, context) {
@@ -97,10 +91,7 @@ function netlink (db, payload, blockInfo, context) {
       if (total === '0') {
         db.users
           .insert(profileData)
-          .catch(e => {
-            console.error('Something went wrong while inserting user', e)
-            Sentry.captureException(e)
-          })
+          .catch(logError('Something went wrong while inserting user'))
       }
     })
     .then(() => {
@@ -118,15 +109,9 @@ function netlink (db, payload, blockInfo, context) {
 
       db.network
         .insert(networkData)
-        .catch(e => {
-          console.error('Something went wrong while adding user to network table', e)
-          Sentry.captureException(e)
-        })
+        .catch(logError('Something went wrong while adding user to network table'))
     })
-    .catch(e => {
-      console.error('Something went wrong while counting for existing users', e)
-      Sentry.captureException(e)
-    })
+    .catch(logError('Something went wrong while counting for existing users'))
 }
 
 function createSale (db, payload, blockInfo, context) {
@@ -134,28 +119,122 @@ function createSale (db, payload, blockInfo, context) {
 
   const [price, symbol] = parseToken(payload.data.quantity)
 
+  const content =
+    payload.data.iso_datetime +
+    payload.data.from +
+    payload.data.title +
+    payload.data.description
+
+  const hash = toSha256(content)
+
   const data = {
+    hash: hash,
     community_id: symbol,
     title: payload.data.title,
     description: payload.data.description,
     price: price,
-    rate: 0,
     image: payload.data.image,
     units: payload.data.units,
     is_buy: payload.data.is_buy === 1,
+    is_deleted: false,
     creator_id: payload.data.from,
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
-    created_at: blockInfo.timestamp
+    created_at: blockInfo.timestamp,
+    requested_at: payload.data.iso_datetime
   }
 
   db.sales
     .insert(data)
-    .catch(e => {
-      console.error('Something went wrong while updating transfer data', e)
-      Sentry.captureException(e)
+    .catch(logError('Something went wrong while updating transfer data'))
+}
+
+function updateSale (db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> Update sale`)
+
+  const [price] = parseToken(payload.data.quantity)
+
+  const updateData = {
+    title: payload.data.title,
+    description: payload.data.description,
+    price: price,
+    image: payload.data.image,
+    units: payload.data.units
+  }
+
+  db.sales
+    .update({
+      hash: payload.data.sale_hash,
+      is_deleted: false
+    }, updateData)
+    .catch(logError('Something went wrong while updating sale, make sure that sale is not deleted'))
+}
+
+function deleteSale (db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> Remove sale`)
+
+  const updateData = {
+    is_deleted: true,
+    deleted_at: blockInfo.timestamp
+  }
+
+  db.sales
+    .update({
+      hash: payload.data.sale_hash,
+      is_deleted: false
+    }, updateData)
+    .catch(logError('Something went wrong while removing sale, make sure that sale is not deleted'))
+}
+
+function voteSale (db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> Vote in a sale`)
+
+  db.sales
+    .findOne({
+      hash: payload.data.sale_hash,
+      is_deleted: false
     })
+    .then(sale => {
+      if (sale == null) {
+        logError('Something went wrong while updating sale units')
+        return
+      }
+
+      const whereArg = {
+        sale_id: sale.id,
+        account_id: payload.data.from
+      }
+
+      db.sale_ratings
+        .count(whereArg)
+        .then(total => {
+          if (total === '0') {
+            const data = {
+              sale_id: sale.id,
+              account_id: payload.data.from,
+              rating: payload.data.type,
+              created_block: blockInfo.blockNumber,
+              created_tx: payload.transactionId,
+              created_eos_account: payload.authorization[0].actor,
+              created_at: blockInfo.timestamp
+            }
+
+            db.sale_ratings
+              .insert(data)
+              .catch(logError('Something went wrong while inserting a vote'))
+          } else {
+            const updateData = {
+              rating: payload.data.type
+            }
+
+            db.sale_ratings
+              .update(whereArg, updateData)
+              .catch(logError('Something went wrong while updating a vote'))
+          }
+        })
+    })
+    .catch(logError('Something went wrong while looking for the sale, make sure that sale is not deleted'))
 }
 
 function transferSale (db, payload, blockInfo, context) {
@@ -163,28 +242,33 @@ function transferSale (db, payload, blockInfo, context) {
 
   const [amount, symbol] = parseToken(payload.data.quantity)
 
+  const whereArg = {
+    hash: payload.data.sale_hash,
+    is_deleted: false
+  }
+
   db.withTransaction(tx => {
     // Find Sale
     return tx.sales
-      .findOne(payload.data.id)
+      .findOne(whereArg)
       .then(sale => {
+        if (sale == null) {
+          logError('Something went wrong while updating sale units')
+          return
+        }
+
         // Decrease units
         const updateData = {
           units: sale.units - parseInt(payload.data.units)
         }
 
         tx.sales
-          .update({
-            id: sale.id
-          }, updateData)
-          .catch(e => {
-            console.error('Something went wrong while updating sale units', e)
-            Sentry.captureException(e)
-          })
+          .update(whereArg, updateData)
+          .catch(logError('Something went wrong while updating sale units, make sure that sale is not deleted'))
 
         // Insert payload into sale_history
         const insertData = {
-          sale_id: payload.data.id,
+          sale_id: sale.id,
           from_id: payload.data.from,
           to_id: payload.data.to,
           amount: amount,
@@ -194,15 +278,9 @@ function transferSale (db, payload, blockInfo, context) {
 
         tx.sale_history
           .insert(insertData)
-          .catch(e => {
-            console.error('Something went wrong while updating sale units', e)
-            Sentry.captureException(e)
-          })
+          .catch(logError('Something went wrong while updating sale units'))
       })
-      .catch(e => {
-        console.error('Something went wrong while looking for the sale', e)
-        Sentry.captureException(e)
-      })
+      .catch(logError('Something went wrong while looking for the sale'))
   })
 }
 
@@ -224,10 +302,7 @@ function newObjective (db, payload, blockInfo, context) {
 
   db.community_objectives
     .insert(objectiveData)
-    .catch(e => {
-      console.error('Something went wrong creating objective', e)
-      Sentry.captureException(e)
-    })
+    .catch(logError('Something went wrong creating objective'))
 }
 
 function newAction (db, payload, blockInfo, context) {
@@ -251,10 +326,7 @@ function newAction (db, payload, blockInfo, context) {
 
   db.community_objective_actions
     .insert(data)
-    .catch(e => {
-      console.error('Something went wrong creating objective', e)
-      Sentry.captureException(e)
-    })
+    .catch(logError('Something went wrong creating objective'))
 }
 
 function verifyAction (db, payload, blockInfo, context) {}
@@ -267,5 +339,8 @@ module.exports = {
   newAction,
   verifyAction,
   createSale,
+  updateSale,
+  deleteSale,
+  voteSale,
   transferSale
 }

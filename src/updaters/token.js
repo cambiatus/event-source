@@ -1,5 +1,9 @@
-const Sentry = require('@sentry/node')
-const { parseToken } = require('../eos_helper')
+const {
+  logError
+} = require('../utils')
+const {
+  parseToken
+} = require('../eos_helper')
 
 function createToken (db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> Create Token`)
@@ -16,10 +20,7 @@ function createToken (db, payload, blockInfo, context) {
 
   db.communities
     .update({ symbol: symbol }, updateData)
-    .catch(e => {
-      console.error('Something went wrong while updating community logo', e)
-      Sentry.captureException(e)
-    })
+    .catch(logError('Something went wrong while updating community logo'))
 }
 
 function transfer (db, payload, blockInfo, context) {
@@ -41,10 +42,7 @@ function transfer (db, payload, blockInfo, context) {
 
   db.transfers
     .insert(transferData)
-    .catch(e => {
-      console.error('Something went wrong while updating transfer data', e)
-      Sentry.captureException(e)
-    })
+    .catch(logError('Something went wrong while updating transfer data'))
 }
 
 function issue (db, payload, blockInfo, context) {
@@ -64,10 +62,7 @@ function issue (db, payload, blockInfo, context) {
 
   db.community_mints
     .insert(data)
-    .catch(e => {
-      console.error('Something went wrong while adding mint to community_mints table', e)
-      Sentry.captureException(e)
-    })
+    .catch(logError('Something went wrong while adding mint to community_mints table'))
 }
 
 function retire (db, payload, blockInfo, context) {}
