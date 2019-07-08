@@ -1,7 +1,6 @@
 const {
-  logError,
-  toSha256
-} = require('../utils')
+  logError
+} = require('../logging')
 const {
   parseToken
 } = require('../eos_helper')

@@ -19,5 +19,10 @@ module.exports = {
   },
   http: {
     port: 3001
+  },
+  sentry: {
+    dsn: 'https://4166852dea514426ace1f8911280f81d@sentry.io/1467639',
+    environment: process.env.NODE_ENV || 'dev',
+    attachStacktrace: true
   }
 }
