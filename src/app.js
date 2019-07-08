@@ -12,7 +12,7 @@ const {
 const {
   logInit,
   logExit
-} = require('logging')
+} = require('./logging')
 
 const updaters = require('./updaters')
 const effects = []
