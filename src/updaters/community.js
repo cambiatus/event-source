@@ -179,6 +179,7 @@ function updateSale (db, payload, blockInfo, context) {
 
   const [price] = parseToken(payload.data.quantity)
 
+  // Update sale data
   const updateData = {
     title: payload.data.title,
     description: payload.data.description,
@@ -189,7 +190,7 @@ function updateSale (db, payload, blockInfo, context) {
 
   db.sales
     .update({
-      hash: payload.data.sale_hash,
+      id: payload.data.sale_id,
       is_deleted: false
     }, updateData)
     .catch(logError('Something went wrong while updating sale, make sure that sale is not deleted'))
@@ -198,6 +199,7 @@ function updateSale (db, payload, blockInfo, context) {
 function deleteSale (db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> Remove sale`)
 
+  // Soft delete sale
   const updateData = {
     is_deleted: true,
     deleted_at: blockInfo.timestamp
@@ -205,7 +207,7 @@ function deleteSale (db, payload, blockInfo, context) {
 
   db.sales
     .update({
-      hash: payload.data.sale_hash,
+      id: payload.data.sale_id,
       is_deleted: false
     }, updateData)
     .catch(logError('Something went wrong while removing sale, make sure that sale is not deleted'))
@@ -214,83 +216,84 @@ function deleteSale (db, payload, blockInfo, context) {
 function voteSale (db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> Vote in a sale`)
 
-  db.sales
-    .findOne({
-      hash: payload.data.sale_hash,
-      is_deleted: false
-    })
-    .then(sale => {
-      if (sale == null) {
-        logError('Something went wrong while updating sale units')
-        return
-      }
+  const transaction = (tx) => {
+    // Find sale
+    tx.sales
+      .findOne({
+        id: payload.data.sale_id,
+        is_deleted: false
+      })
+      .then(sale => {
+        if (sale === null) {
+          throw new Error('No data available')
+        }
 
-      const whereArg = {
-        sale_id: sale.id,
-        account_id: payload.data.from
-      }
+        const whereArg = {
+          sale_id: sale.id,
+          account_id: payload.data.from
+        }
 
-      db.sale_ratings
-        .count(whereArg)
-        .then(total => {
-          if (total === '0') {
-            const data = {
-              sale_id: sale.id,
-              account_id: payload.data.from,
-              rating: payload.data.type,
-              created_block: blockInfo.blockNumber,
-              created_tx: payload.transactionId,
-              created_eos_account: payload.authorization[0].actor,
-              created_at: blockInfo.timestamp
+        // Check if sale was previously voted
+        tx.sale_ratings
+          .count(whereArg)
+          .then(total => {
+            if (total === '0') {
+              const data = {
+                sale_id: sale.id,
+                account_id: payload.data.from,
+                rating: payload.data.type,
+                created_block: blockInfo.blockNumber,
+                created_tx: payload.transactionId,
+                created_eos_account: payload.authorization[0].actor,
+                created_at: blockInfo.timestamp
+              }
+
+              tx.sale_ratings
+                .insert(data)
+            } else {
+              const updateData = {
+                rating: payload.data.type
+              }
+
+              tx.sale_ratings
+                .update(whereArg, updateData)
             }
+          })
+      })
+  }
 
-            db.sale_ratings
-              .insert(data)
-              .catch(logError('Something went wrong while inserting a vote'))
-          } else {
-            const updateData = {
-              rating: payload.data.type
-            }
-
-            db.sale_ratings
-              .update(whereArg, updateData)
-              .catch(logError('Something went wrong while updating a vote'))
-          }
-        })
-    })
-    .catch(logError('Something went wrong while looking for the sale, make sure that sale is not deleted'))
+  db.withTransaction(transaction)
+    .catch(logError('Something went wrong while voting on a sale, make sure that sale is not deleted'))
 }
 
 function transferSale (db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Transfer Sale`)
 
-  const [amount, symbol] = parseToken(payload.data.quantity)
+  const transaction = (tx) => {
+    const [amount, symbol] = parseToken(payload.data.quantity)
 
-  const whereArg = {
-    hash: payload.data.sale_hash,
-    is_deleted: false
-  }
+    const whereArg = {
+      id: payload.data.sale_id,
+      is_deleted: false
+    }
 
-  db.withTransaction(tx => {
-    // Find Sale
+    // Find sale
     return tx.sales
       .findOne(whereArg)
       .then(sale => {
-        if (sale == null) {
-          logError('Something went wrong while updating sale units')
-          return
+        if (sale === null) {
+          throw new Error('No data available')
         }
 
-        // Decrease units
+        // Update sale units
         const updateData = {
           units: sale.units - parseInt(payload.data.units)
         }
 
         tx.sales
           .update(whereArg, updateData)
-          .catch(logError('Something went wrong while updating sale units, make sure that sale is not deleted'))
 
-        // Insert payload into sale_history
+        // Insert new sale transfer history
         const insertData = {
           sale_id: sale.id,
           from_id: payload.data.from,
@@ -302,10 +305,11 @@ function transferSale (db, payload, blockInfo, context) {
 
         tx.sale_history
           .insert(insertData)
-          .catch(logError('Something went wrong while updating sale units'))
       })
-      .catch(logError('Something went wrong while looking for the sale'))
-  })
+  }
+
+  db.withTransaction(transaction)
+    .catch(logError('Something went wrong while transferring sale'))
 }
 
 function newObjective (db, payload, blockInfo, context) {
