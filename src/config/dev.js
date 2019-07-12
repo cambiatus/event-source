@@ -5,6 +5,7 @@ module.exports = {
       token: 'bes.token',
       community: 'bes.cmm'
     },
+    privateKey: '',
     url: 'http://eosio.bespiral.local',
     initialBlock: 1
     // initialBlock: 3580
