@@ -10,7 +10,6 @@ module.exports = {
       token: process.env.BLOCKCHAIN_TOKEN_CONTRACT,
       community: process.env.BLOCKCHAIN_COMMUNITY_CONTRACT
     },
-    privateKey: '',
     url: process.env.BLOCKCHAIN_URL,
     initialBlock: initialBlock
   },
