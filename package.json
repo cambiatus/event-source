@@ -15,9 +15,7 @@
     "demux": "^2.0.0",
     "demux-eos": "^2.0.0",
     "demux-postgres": "^2.0.0",
-    "eosjs": "^20.0.0",
     "massive": "^5.7.7",
-    "node-fetch": "^2.6.0",
     "pg-native": "^3.0.0"
   },
   "devDependencies": {
