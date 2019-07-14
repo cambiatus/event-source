@@ -2,11 +2,8 @@ const {
   logError
 } = require('../logging')
 const {
-  deleteLastSaleById,
-  getLastSaleByHash,
   parseToken
 } = require('../eos_helper')
-const crypto = require('crypto')
 
 function createCommunity (db, payload, blockInfo) {
   console.log(`BeSpiral >>> Create Community`)
@@ -119,59 +116,28 @@ function netlink (db, payload, blockInfo, context) {
 function createSale (db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Sale`)
 
-  const content =
-    payload.data.from +
-    payload.data.title +
-    payload.data.description +
-    payload.data.quantity +
-    payload.data.image +
-    payload.data.is_buy +
-    payload.data.units
+  const [price, symbol] = parseToken(payload.data.quantity)
 
-  // Generate last sale hash
-  const lastSaleHash = toSha256(content)
+  const data = {
+    community_id: symbol,
+    title: payload.data.title,
+    description: payload.data.description,
+    price: price,
+    image: payload.data.image,
+    units: payload.data.units,
+    is_buy: payload.data.is_buy === 1,
+    is_deleted: false,
+    creator_id: payload.data.from,
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_eos_account: payload.authorization[0].actor,
+    created_at: blockInfo.timestamp
+  }
 
-  // Get last sale
-  getLastSaleByHash(lastSaleHash)
-    .then(response => {
-      const lastSale = response.rows[0]
-
-      if (lastSale === null) {
-        throw new Error('No data available')
-      }
-
-      const saleId = lastSale.sale_id
-
-      const [price, symbol] = parseToken(payload.data.quantity)
-
-      const data = {
-        id: saleId,
-        community_id: symbol,
-        title: payload.data.title,
-        description: payload.data.description,
-        price: price,
-        image: payload.data.image,
-        units: payload.data.units,
-        is_buy: payload.data.is_buy === 1,
-        is_deleted: false,
-        creator_id: payload.data.from,
-        created_block: blockInfo.blockNumber,
-        created_tx: payload.transactionId,
-        created_eos_account: payload.authorization[0].actor,
-        created_at: blockInfo.timestamp
-      }
-
-      // Insert sale on database
-      db.sales
-        .insert(data)
-        .then(() => {
-          // Delete last sale row from blockchain
-          deleteLastSaleById(lastSale.id)
-            .catch(logError(`Something went wrong while remove associated 'last sale'`))
-        })
-        .catch(logError('Something went wrong while creating a new sale'))
-    })
-    .catch(logError('Something went wrong while looking for the sale'))
+  // Insert sale on database
+  db.sales
+    .insert(data)
+    .catch(logError('Something went wrong while creating a new sale'))
 }
 
 function updateSale (db, payload, blockInfo, context) {
@@ -358,13 +324,6 @@ function newAction (db, payload, blockInfo, context) {
 }
 
 function verifyAction (db, payload, blockInfo, context) {}
-
-function toSha256 (message) {
-  return crypto
-    .createHash('sha256')
-    .update(message)
-    .digest('hex')
-}
 
 module.exports = {
   createCommunity,
