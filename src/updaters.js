@@ -6,7 +6,7 @@ const {
   createSale,
   updateSale,
   deleteSale,
-  voteSale,
+  reactSale,
   transferSale,
   newObjective,
   newAction,
@@ -59,8 +59,8 @@ const updaters = [
     updater: deleteSale
   },
   {
-    actionType: `${config.blockchain.contract.community}::votesale`,
-    updater: voteSale
+    actionType: `${config.blockchain.contract.community}::reactsale`,
+    updater: reactSale
   },
   {
     actionType: `${config.blockchain.contract.community}::transfersale`,

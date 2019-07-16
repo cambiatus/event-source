@@ -179,7 +179,7 @@ function deleteSale (db, payload, blockInfo, context) {
     .catch(logError('Something went wrong while removing sale, make sure that sale is not deleted'))
 }
 
-function voteSale (db, payload, blockInfo, context) {
+function reactSale (db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> Vote in a sale`)
 
   const transaction = (tx) => {
@@ -229,7 +229,7 @@ function voteSale (db, payload, blockInfo, context) {
   }
 
   db.withTransaction(transaction)
-    .catch(logError('Something went wrong while voting on a sale, make sure that sale is not deleted'))
+    .catch(logError('Something went wrong while reacting to a sale, make sure that sale is not deleted'))
 }
 
 function transferSale (db, payload, blockInfo, context) {
@@ -335,6 +335,6 @@ module.exports = {
   createSale,
   updateSale,
   deleteSale,
-  voteSale,
+  reactSale,
   transferSale
 }
