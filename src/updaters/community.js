@@ -356,25 +356,31 @@ function verifyAction (db, payload, blockInfo, context) {
   console.log(`BeSpiral  >>> Action verification`)
 
   // Collect the action
-  const savedAction = db.actions.findOne(payload.data.action_id).then(a => a)
-
-  // Compute Completion
-  let completed = false
-  if (savedAction.usages_left - 1 <= 0) {
-    completed = true
-  }
-
-  const updateData = {
-    usages_left: savedAction.usages_left - 1,
-    is_completed: completed
-  }
-
   db.actions
-    .update({
-      id: payload.data.action_id
-    }, updateData)
+    .findOne(payload.data.action_id)
+    .then(a => {
+      let completed = false
+
+      if (a.usages_left - 1 <= 0) {
+        completed = true
+      }
+
+      const updateData = {
+        usages_left: a.usages_left - 1,
+        is_completed: completed
+      }
+
+      db.actions
+        .update({
+          id: payload.data.action_id
+        }, updateData)
+        .catch(e => {
+          console.log('Something went wrong while verifying an action', e)
+          Sentry.captureException(e)
+        })
+    })
     .catch(e => {
-      console.log('Something went wrong while verifying an action', e)
+      console.log('Something went wrong while finding an action', e)
       Sentry.captureException(e)
     })
 }
