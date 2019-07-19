@@ -60,7 +60,7 @@ function issue (db, payload, blockInfo, context) {
     created_at: blockInfo.timestamp
   }
 
-  db.community_mints
+  db.mints
     .insert(data)
     .catch(logError('Something went wrong while adding mint to community_mints table'))
 }
