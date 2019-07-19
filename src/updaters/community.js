@@ -331,7 +331,11 @@ function newAction (db, payload, blockInfo, context) {
       validators.map(v => {
         const validatorData = {
           action_id: savedAction.id,
-          validator_id: v
+          validator_id: v,
+          created_block: blockInfo.blockNumber,
+          created_tx: payload.transactionId,
+          created_eos_account: payload.authorization[0].actor,
+          created_at: blockInfo.timestamp
         }
 
         db.validators
@@ -381,7 +385,11 @@ function claimAction (db, payload, blockInfo, context) {
   const data = {
     action_id: payload.data.action_id,
     claimer_id: payload.data.claimer,
-    is_verified: false
+    is_verified: false,
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_eos_account: payload.authorization[0].actor,
+    created_at: blockInfo.timestamp
   }
 
   db.claims
