@@ -294,7 +294,7 @@ function newObjective (db, payload, blockInfo, context) {
     created_eos_account: payload.authorization[0].actor
   }
 
-  db.community_objectives
+  db.objectives
     .insert(objectiveData)
     .catch(logError('Something went wrong creating objective'))
 }
@@ -304,21 +304,27 @@ function newAction (db, payload, blockInfo, context) {
 
   const [rewardAmount] = parseToken(payload.data.reward)
   const [verifierAmount] = parseToken(payload.data.verifier_reward)
+  const deadlineDateTime = new Date(payload.data.deadline * 1000).toISOString()
 
   const data = {
-    community_objective_id: parseInt(payload.data.objective_id) + 1,
+    objective_id: parseInt(payload.data.objective_id) + 1,
     creator_id: payload.data.creator,
     description: payload.data.description,
     reward: rewardAmount,
     verifier_reward: verifierAmount,
-    is_verified: false,
+    is_completed: false,
+    usages: payload.data.usages,
+    usages_left: payload.data.usages,
+    verifications: payload.data.verifications,
+    verification_type: payload.data.verification_type,
+    deadline: deadlineDateTime,
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_at: blockInfo.timestamp,
     created_eos_account: payload.authorization[0].actor
   }
 
-  db.community_objective_actions
+  db.actions
     .insert(data)
     .catch(logError('Something went wrong creating objective'))
 }
