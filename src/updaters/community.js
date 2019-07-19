@@ -402,6 +402,24 @@ function claimAction (db, payload, blockInfo, context) {
 
 function verifyClaim (db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> Claim Verification`)
+
+  const checkData = {
+    claim_id: payload.data.claim_id,
+    validator_id: payload.data.validator,
+    is_verified: payload.data.vote === 1,
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_eos_account: payload.authorization[0].actor,
+    created_at: blockInfo.timestamp
+  }
+
+  // TODO action completion ...
+  db.checks
+    .insert(checkData)
+    .catch(e => {
+      console.log('Something went wrong while inserting a check', e)
+      Sentry.captureException(e)
+    })
 }
 
 module.exports = {
