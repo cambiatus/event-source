@@ -10,7 +10,9 @@ const {
   transferSale,
   newObjective,
   newAction,
-  verifyAction
+  verifyAction,
+  verifyClaim,
+  claimAction
 } = require('./updaters/community.js')
 const {
   createToken,
@@ -66,7 +68,14 @@ const updaters = [
     actionType: `${config.blockchain.contract.community}::transfersale`,
     updater: transferSale
   },
-
+  {
+    actionType: `${config.blockchain.contract.community}::verifyclaim`,
+    updater: verifyClaim
+  },
+  {
+    actionType: `${config.blockchain.contract.community}::claimaction`,
+    updater: claimAction
+  },
   // ======== Token
   {
     actionType: `${config.blockchain.contract.token}::create`,
