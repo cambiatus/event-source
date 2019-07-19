@@ -329,10 +329,16 @@ function newAction (db, payload, blockInfo, context) {
     .insert(data)
     .then(savedAction => {
       validators.map(v => {
+        const validatorData = {
+          action_id: savedAction.id,
+          validator_id: v
+        }
+
         db.validators
-          .insert({
-            action_id: savedAction.id,
-            validator_id: v
+          .insert(validatorData)
+          .catch(e => {
+            console.error('Something went wrong while creating a validator', e)
+            Sentry.captureException(e)
           })
       })
     })
@@ -364,9 +370,30 @@ function verifyAction (db, payload, blockInfo, context) {
       id: payload.data.action_id
     }, updateData)
     .catch(e => {
-      console.log('Something went wrong while updating an action', e)
+      console.log('Something went wrong while verifying an action', e)
       Sentry.captureException(e)
     })
+}
+
+function claimAction (db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> Claiming an Action`)
+
+  const data = {
+    action_id: payload.data.action_id,
+    claimer_id: payload.data.claimer,
+    is_verified: false
+  }
+
+  db.claims
+    .insert(data)
+    .catch(e => {
+      console.log('Something went wrong while inserting a claim', e)
+      Sentry.captureException(e)
+    })
+}
+
+function verifyClaim (db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> Claim Verification`)
 }
 
 module.exports = {
@@ -380,5 +407,7 @@ module.exports = {
   updateSale,
   deleteSale,
   reactSale,
-  transferSale
+  transferSale,
+  verifyClaim,
+  claimAction
 }
