@@ -325,31 +325,33 @@ function newAction (db, payload, blockInfo, context) {
     created_eos_account: payload.authorization[0].actor
   }
 
-  db.actions
-    .insert(data)
-    .then(savedAction => {
-      validators.map(v => {
-        const validatorData = {
-          action_id: savedAction.id,
-          validator_id: v,
-          created_block: blockInfo.blockNumber,
-          created_tx: payload.transactionId,
-          created_eos_account: payload.authorization[0].actor,
-          created_at: blockInfo.timestamp
-        }
+  db.withTransaction(tx => {
+    return tx.actions
+      .insert(data)
+      .then(savedAction => {
+        validators.map(v => {
+          const validatorData = {
+            action_id: savedAction.id,
+            validator_id: v,
+            created_block: blockInfo.blockNumber,
+            created_tx: payload.transactionId,
+            created_eos_account: payload.authorization[0].actor,
+            created_at: blockInfo.timestamp
+          }
 
-        db.validators
-          .insert(validatorData)
-          .catch(e => {
-            console.error('Something went wrong while creating a validator', e)
-            Sentry.captureException(e)
-          })
+          tx.validators
+            .insert(validatorData)
+            .catch(e => {
+              console.error('Something went wrong while creating a validator', e)
+              Sentry.captureException(e)
+            })
+        })
       })
-    })
-    .catch(e => {
-      console.error('Something went wrong while creating an action', e)
-      Sentry.captureException(e)
-    })
+      .catch(e => {
+        console.error('Something went wrong while creating an action', e)
+        Sentry.captureException(e)
+      })
+  })
 }
 
 function verifyAction (db, payload, blockInfo, context) {
