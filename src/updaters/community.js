@@ -305,6 +305,7 @@ function newAction (db, payload, blockInfo, context) {
   const [rewardAmount] = parseToken(payload.data.reward)
   const [verifierAmount] = parseToken(payload.data.verifier_reward)
   const deadlineDateTime = new Date(payload.data.deadline * 1000).toISOString()
+  const validators = payload.data.validators_str.split('-')
 
   const data = {
     objective_id: parseInt(payload.data.objective_id) + 1,
@@ -326,7 +327,19 @@ function newAction (db, payload, blockInfo, context) {
 
   db.actions
     .insert(data)
-    .catch(logError('Something went wrong creating objective'))
+    .then(savedAction => {
+      validators.map(v => {
+        db.validators
+          .insert({
+            action_id: savedAction.id,
+            validator_id: v
+          })
+      })
+    })
+    .catch(e => {
+      console.error('Something went wrong while creating an action', e)
+      Sentry.captureException(e)
+    })
 }
 
 function verifyAction (db, payload, blockInfo, context) {
