@@ -361,11 +361,7 @@ function verifyAction (db, payload, blockInfo, context) {
   db.actions
     .findOne(payload.data.action_id)
     .then(a => {
-      let completed = false
-
-      if (a.usages_left - 1 <= 0) {
-        completed = true
-      }
+      const completed = a.usages_left - 1 <= 0
 
       const updateData = {
         usages_left: a.usages_left - 1,
@@ -420,6 +416,79 @@ function verifyClaim (db, payload, blockInfo, context) {
     created_eos_account: payload.authorization[0].actor,
     created_at: blockInfo.timestamp
   }
+
+  db.withTransaction(tx => {
+    return tx.checks
+      .insert(checkData)
+    // Save the Check
+      .then(check => {
+        tx.claims
+        // Find the checks claim
+          .findOne(check.claim_id)
+          .then(claim => {
+            tx.actions
+            // Find the claims action
+              .findOne(claim.action_id)
+            // Count verified checks
+              .then(action => {
+                tx.checks
+                  .count({
+                    claim_id: claim.id,
+                    is_verified: true
+                  })
+                  .then(total => {
+                    // Set claim as completed
+                    if (Number(total) >= action.verifications) {
+                      tx.claims
+                        .update(claim.id, { is_verified: true })
+                        .catch(e => {
+                          console.error('Something went wrong while updating a claim', e)
+                          Sentry.captureException(e)
+                        })
+                    }
+
+                    // check if action can be completed
+                    if (action.usages > 0 && (action.usages_left - 1 <= 0)) {
+                      tx.actions
+                        .update(action.id, {
+                          usages_left: action.usages_left - 1,
+                          is_completed: true
+                        })
+                        .catch(e => {
+                          console.error('Something went wrong while updating an action', e)
+                          Sentry.captureException(e)
+                        })
+                    } else {
+                      tx.actions
+                        .update(action.id, {
+                          usages_left: action.usages_left - 1
+                        })
+                        .catch(e => {
+                          console.error('Something went wrong while updating an action', e)
+                          Sentry.captureException(e)
+                        })
+                    }
+                  })
+                  .catch(e => {
+                    console.error('Something went wrong while counting verified checks', e)
+                    Sentry.captureException(e)
+                  })
+              })
+              .catch(e => {
+                console.error('Something went wrong while collecting an action', e)
+                Sentry.captureException(e)
+              })
+          })
+          .catch(e => {
+            console.error('Something went wrong while collecting a claim', e)
+            Sentry.captureException(e)
+          })
+      })
+  })
+    .catch(e => {
+      console.error('Something went wrong while inserting a check', e)
+      Sentry.captureException(e)
+    })
 
   // TODO action completion ...
   db.checks
