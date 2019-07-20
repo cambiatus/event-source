@@ -377,12 +377,12 @@ function verifyAction (db, payload, blockInfo, context) {
           id: payload.data.action_id
         }, updateData)
         .catch(e => {
-          console.log('Something went wrong while verifying an action', e)
+          console.error('Something went wrong while verifying an action', e)
           Sentry.captureException(e)
         })
     })
     .catch(e => {
-      console.log('Something went wrong while finding an action', e)
+      console.error('Something went wrong while finding an action', e)
       Sentry.captureException(e)
     })
 }
@@ -403,7 +403,7 @@ function claimAction (db, payload, blockInfo, context) {
   db.claims
     .insert(data)
     .catch(e => {
-      console.log('Something went wrong while inserting a claim', e)
+      console.error('Something went wrong while inserting a claim', e)
       Sentry.captureException(e)
     })
 }
@@ -425,7 +425,7 @@ function verifyClaim (db, payload, blockInfo, context) {
   db.checks
     .insert(checkData)
     .catch(e => {
-      console.log('Something went wrong while inserting a check', e)
+      console.error('Something went wrong while inserting a check', e)
       Sentry.captureException(e)
     })
 }
