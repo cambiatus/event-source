@@ -489,14 +489,6 @@ function verifyClaim (db, payload, blockInfo, context) {
       console.error('Something went wrong while inserting a check', e)
       Sentry.captureException(e)
     })
-
-  // TODO action completion ...
-  db.checks
-    .insert(checkData)
-    .catch(e => {
-      console.error('Something went wrong while inserting a check', e)
-      Sentry.captureException(e)
-    })
 }
 
 module.exports = {
