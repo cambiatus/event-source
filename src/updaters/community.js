@@ -308,7 +308,7 @@ function newAction (db, payload, blockInfo, context) {
   const validators = payload.data.validators_str.split('-')
 
   const data = {
-    objective_id: parseInt(payload.data.objective_id) + 1,
+    objective_id: payload.data.objective_id,
     creator_id: payload.data.creator,
     description: payload.data.description,
     reward: rewardAmount,
