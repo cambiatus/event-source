@@ -341,17 +341,13 @@ function newAction (db, payload, blockInfo, context) {
 
           tx.validators
             .insert(validatorData)
-            .catch(e => {
-              console.error('Something went wrong while creating a validator', e)
-              Sentry.captureException(e)
-            })
         })
       })
-      .catch(e => {
-        console.error('Something went wrong while creating an action', e)
-        Sentry.captureException(e)
-      })
   })
+    .catch(e => {
+      console.error('Something went wrong while creating an action', e)
+      Sentry.captureException(e)
+    })
 }
 
 function verifyAction (db, payload, blockInfo, context) {
