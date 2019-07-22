@@ -344,10 +344,7 @@ function newAction (db, payload, blockInfo, context) {
         })
       })
   })
-    .catch(e => {
-      console.error('Something went wrong while creating an action', e)
-      Sentry.captureException(e)
-    })
+    .catch(logError('Something went wrong while creating an action'))
 }
 
 function verifyAction (db, payload, blockInfo, context) {
@@ -372,15 +369,9 @@ function verifyAction (db, payload, blockInfo, context) {
         .update({
           id: payload.data.action_id
         }, updateData)
-        .catch(e => {
-          console.error('Something went wrong while verifying an action', e)
-          Sentry.captureException(e)
-        })
+        .catch(logError('Something went wrong while verifying an action'))
     })
-    .catch(e => {
-      console.error('Something went wrong while finding an action', e)
-      Sentry.captureException(e)
-    })
+    .catch(logError('Something went wrong while finding an action'))
 }
 
 function claimAction (db, payload, blockInfo, context) {
@@ -398,10 +389,7 @@ function claimAction (db, payload, blockInfo, context) {
 
   db.claims
     .insert(data)
-    .catch(e => {
-      console.error('Something went wrong while inserting a claim', e)
-      Sentry.captureException(e)
-    })
+    .catch(logError('Something went wrong while inserting a claim'))
 }
 
 function verifyClaim (db, payload, blockInfo, context) {
@@ -462,10 +450,7 @@ function verifyClaim (db, payload, blockInfo, context) {
           })
       })
   })
-    .catch(e => {
-      console.error('Something went wrong while inserting a check', e)
-      Sentry.captureException(e)
-    })
+    .catch(logError('Something went wrong while inserting a check'))
 }
 
 module.exports = {
