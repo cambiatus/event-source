@@ -450,19 +450,13 @@ function verifyClaim (db, payload, blockInfo, context) {
                         .update(claim.id, { is_verified: true })
                     }
 
-                    // check if action can be completed
-                    if (action.usages > 0 && (action.usages_left - 1 <= 0)) {
-                      tx.actions
-                        .update(action.id, {
-                          usages_left: action.usages_left - 1,
-                          is_completed: true
-                        })
-                    } else {
-                      tx.actions
-                        .update(action.id, {
-                          usages_left: action.usages_left - 1
-                        })
+                    const updateData = {
+                      usages_left: action.usages_left - 1,
+                      is_completed: action.usages > 0 && (action.usages_left - 1 <= 0)
                     }
+
+                    tx.actions
+                      .update(action.id, updateData)
                   })
               })
           })
