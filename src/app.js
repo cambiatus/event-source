@@ -1,6 +1,5 @@
 const config = require(`./config/${process.env.NODE_ENV || 'dev'}`)
 const massive = require('massive')
-const Sentry = require('@sentry/node')
 const {
   BaseActionWatcher
 } = require('demux')
@@ -10,6 +9,10 @@ const {
 const {
   MassiveActionHandler
 } = require('demux-postgres')
+const {
+  logInit,
+  logExit
+} = require('./logging')
 
 const updaters = require('./updaters')
 const effects = []
@@ -54,16 +57,6 @@ async function init () {
 process.on('unhandledRejection', logExit)
 process.on('uncaughtException', logExit)
 
-function logExit (e) {
-  console.error('An error has occured. error is: %s and stack trace is: %s', e, e.stack)
-  console.error('Process will exit now.')
-  process.exit(1)
-}
-
-Sentry.init({
-  dsn: 'https://4166852dea514426ace1f8911280f81d@sentry.io/1467639',
-  environment: process.env.NODE_ENV || 'dev',
-  attachStacktrace: true
-})
+logInit()
 
 init()

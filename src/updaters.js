@@ -4,6 +4,9 @@ const {
   updateCommunity,
   netlink,
   createSale,
+  updateSale,
+  deleteSale,
+  reactSale,
   transferSale,
   newObjective,
   newAction,
@@ -46,6 +49,18 @@ const updaters = [
   {
     actionType: `${config.blockchain.contract.community}::createsale`,
     updater: createSale
+  },
+  {
+    actionType: `${config.blockchain.contract.community}::updatesale`,
+    updater: updateSale
+  },
+  {
+    actionType: `${config.blockchain.contract.community}::deletesale`,
+    updater: deleteSale
+  },
+  {
+    actionType: `${config.blockchain.contract.community}::reactsale`,
+    updater: reactSale
   },
   {
     actionType: `${config.blockchain.contract.community}::transfersale`,
