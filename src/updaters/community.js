@@ -308,7 +308,7 @@ function newObjective (db, payload, blockInfo, context) {
     created_eos_account: payload.authorization[0].actor
   }
 
-  db.community_objectives
+  db.objectives
     .insert(objectiveData)
     .catch(logError('Something went wrong creating objective'))
 }
@@ -318,26 +318,154 @@ function newAction (db, payload, blockInfo, context) {
 
   const [rewardAmount] = parseToken(payload.data.reward)
   const [verifierAmount] = parseToken(payload.data.verifier_reward)
+  const deadlineDateTime = new Date(payload.data.deadline * 1000).toISOString()
+  const validators = payload.data.validators_str.split('-')
 
   const data = {
-    community_objective_id: parseInt(payload.data.objective_id) + 1,
+    objective_id: payload.data.objective_id,
     creator_id: payload.data.creator,
     description: payload.data.description,
     reward: rewardAmount,
     verifier_reward: verifierAmount,
-    is_verified: false,
+    is_completed: false,
+    usages: payload.data.usages,
+    usages_left: payload.data.usages,
+    verifications: payload.data.verifications,
+    verification_type: payload.data.verification_type,
+    deadline: deadlineDateTime,
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_at: blockInfo.timestamp,
     created_eos_account: payload.authorization[0].actor
   }
 
-  db.community_objective_actions
-    .insert(data)
-    .catch(logError('Something went wrong creating objective'))
+  db.withTransaction(tx => {
+    return tx.actions
+      .insert(data)
+      .then(savedAction => {
+        validators.map(v => {
+          const validatorData = {
+            action_id: savedAction.id,
+            validator_id: v,
+            created_block: blockInfo.blockNumber,
+            created_tx: payload.transactionId,
+            created_eos_account: payload.authorization[0].actor,
+            created_at: blockInfo.timestamp
+          }
+
+          tx.validators
+            .insert(validatorData)
+        })
+      })
+  })
+    .catch(logError('Something went wrong while creating an action'))
 }
 
-function verifyAction (db, payload, blockInfo, context) {}
+function verifyAction (db, payload, blockInfo, context) {
+  console.log(`BeSpiral  >>> Action verification`)
+
+  // Collect the action
+  db.actions
+    .findOne(payload.data.action_id)
+    .then(a => {
+      if (a === null) {
+        throw new Error('action not available')
+      }
+
+      const completed = a.usages_left - 1 <= 0
+
+      const updateData = {
+        usages_left: a.usages_left - 1,
+        is_completed: completed
+      }
+
+      db.actions
+        .update({
+          id: payload.data.action_id
+        }, updateData)
+        .catch(logError('Something went wrong while verifying an action'))
+    })
+    .catch(logError('Something went wrong while finding an action'))
+}
+
+function claimAction (db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> Claiming an Action`)
+
+  const data = {
+    action_id: payload.data.action_id,
+    claimer_id: payload.data.claimer,
+    is_verified: false,
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_eos_account: payload.authorization[0].actor,
+    created_at: blockInfo.timestamp
+  }
+
+  db.claims
+    .insert(data)
+    .catch(logError('Something went wrong while inserting a claim'))
+}
+
+function verifyClaim (db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> Claim Verification`)
+
+  const checkData = {
+    claim_id: payload.data.claim_id,
+    validator_id: payload.data.validator,
+    is_verified: payload.data.vote === 1,
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_eos_account: payload.authorization[0].actor,
+    created_at: blockInfo.timestamp
+  }
+
+  db.withTransaction(tx => {
+    return tx.checks
+      .insert(checkData)
+    // Save the Check
+      .then(check => {
+        tx.claims
+        // Find the checks claim
+          .findOne(check.claim_id)
+          .then(claim => {
+            if (claim === null) {
+              throw new Error('claim not available')
+            }
+            tx.actions
+            // Find the claims action
+              .findOne(claim.action_id)
+            // Count verified checks
+              .then(action => {
+                if (action === null) {
+                  throw new Error('action not available')
+                }
+
+                tx.checks
+                  .count({
+                    claim_id: claim.id,
+                    is_verified: true
+                  })
+                  .then(total => {
+                    // Set claim as completed
+                    if (Number(total) >= action.verifications) {
+                      tx.claims
+                        .update(claim.id, { is_verified: true })
+                    }
+
+                    const updateData = {
+                      usages_left: action.usages_left - 1,
+                      is_completed: action.usages > 0 && (action.usages_left - 1 <= 0)
+                    }
+
+                    tx.actions
+                      .update(action.id, updateData)
+                  })
+              })
+          })
+      })
+  })
+    .catch(logError('Something went wrong while inserting a check'))
+}
 
 module.exports = {
   createCommunity,
@@ -350,5 +478,7 @@ module.exports = {
   updateSale,
   deleteSale,
   reactSale,
-  transferSale
+  transferSale,
+  verifyClaim,
+  claimAction
 }
