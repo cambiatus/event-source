@@ -117,6 +117,8 @@ function createSale (db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Sale`)
 
   const [price, symbol] = parseToken(payload.data.quantity)
+  const trackStock = payload.data.track_stock === 1
+  const units = trackStock ? payload.data.units : 0
 
   const data = {
     community_id: symbol,
@@ -124,8 +126,8 @@ function createSale (db, payload, blockInfo, context) {
     description: payload.data.description,
     price: price,
     image: payload.data.image,
-    units: payload.data.units,
-    is_buy: payload.data.is_buy === 1,
+    units: units,
+    track_stock: trackStock,
     is_deleted: false,
     creator_id: payload.data.from,
     created_block: blockInfo.blockNumber,
@@ -143,23 +145,35 @@ function createSale (db, payload, blockInfo, context) {
 function updateSale (db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> Update sale`)
 
-  const [price] = parseToken(payload.data.quantity)
-
-  // Update sale data
-  const updateData = {
-    title: payload.data.title,
-    description: payload.data.description,
-    price: price,
-    image: payload.data.image,
-    units: payload.data.units
+  const whereArg = {
+    id: payload.data.sale_id,
+    is_deleted: false
   }
 
   db.sales
-    .update({
-      id: payload.data.sale_id,
-      is_deleted: false
-    }, updateData)
-    .catch(logError('Something went wrong while updating sale, make sure that sale is not deleted'))
+    .findOne(whereArg)
+    .then(sale => {
+      if (sale == null) {
+        throw new Error('No sale data available')
+      }
+
+      const [price] = parseToken(payload.data.quantity)
+      const units = sale.track_stock ? payload.data.units : 0
+
+      // Update sale data
+      const updateData = {
+        title: payload.data.title,
+        description: payload.data.description,
+        price: price,
+        image: payload.data.image,
+        units: units
+      }
+
+      db.sales
+        .update(whereArg, updateData)
+        .catch(logError('Something went wrong while updating sale, make sure that sale is not deleted'))
+    })
+    .catch(logError('Something went wrong while looking for the sale, make sure that sale is not deleted'))
 }
 
 function deleteSale (db, payload, blockInfo, context) {
@@ -191,7 +205,7 @@ function reactSale (db, payload, blockInfo, context) {
       })
       .then(sale => {
         if (sale === null) {
-          throw new Error('No data available')
+          throw new Error('No sale data available')
         }
 
         const whereArg = {
@@ -248,7 +262,7 @@ function transferSale (db, payload, blockInfo, context) {
       .findOne(whereArg)
       .then(sale => {
         if (sale === null) {
-          throw new Error('No data available')
+          throw new Error('No sale data available')
         }
 
         // Update sale units
