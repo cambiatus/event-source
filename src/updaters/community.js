@@ -362,7 +362,7 @@ function newAction (db, payload, blockInfo, context) {
 }
 
 function verifyAction (db, payload, blockInfo, context) {
-  console.log(`BeSpiral  >>> Action verification`)
+  console.log(`BeSpiral >>> Action verification`)
 
   // Collect the action
   db.actions
