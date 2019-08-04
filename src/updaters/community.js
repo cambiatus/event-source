@@ -411,7 +411,7 @@ function verifyClaim (db, payload, blockInfo, context) {
 
   const checkData = {
     claim_id: payload.data.claim_id,
-    validator_id: payload.data.validator,
+    validator_id: payload.data.verifier,
     is_verified: payload.data.vote === 1,
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
