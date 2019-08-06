@@ -1,11 +1,11 @@
 {
   "name": "event-source",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Event broker for BeSpiral smart contracts",
   "main": "src/app.js",
   "scripts": {
-    "start": "standard && node src/app.js",
-    "format": "standard",
+    "start": "standard ./src/ && node src/app.js",
+    "format": "standard ./src/",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Julien Lucca",
