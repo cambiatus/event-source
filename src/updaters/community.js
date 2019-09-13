@@ -321,44 +321,50 @@ function newAction (db, payload, blockInfo, context) {
   const deadlineDateTime = new Date(payload.data.deadline * 1000).toISOString()
   const validators = payload.data.validators_str.length > 0 ? payload.data.validators_str.split('-') : []
 
-  const data = {
-    objective_id: payload.data.objective_id,
-    creator_id: payload.data.creator,
-    description: payload.data.description,
-    reward: rewardAmount,
-    verifier_reward: verifierAmount,
-    is_completed: false,
-    usages: payload.data.usages,
-    usages_left: payload.data.usages,
-    verifications: payload.data.verifications,
-    verification_type: payload.data.verification_type,
-    deadline: deadlineDateTime,
-    created_block: blockInfo.blockNumber,
-    created_tx: payload.transactionId,
-    created_at: blockInfo.timestamp,
-    created_eos_account: payload.authorization[0].actor
-  }
+  const objective = db.objectibes.findOne({ id: payload.data.objective_id })
 
-  db.withTransaction(tx => {
-    return tx.actions
-      .insert(data)
-      .then(savedAction => {
-        validators.map(v => {
-          const validatorData = {
-            action_id: savedAction.id,
-            validator_id: v,
-            created_block: blockInfo.blockNumber,
-            created_tx: payload.transactionId,
-            created_eos_account: payload.authorization[0].actor,
-            created_at: blockInfo.timestamp
-          }
+  if (objective != null) {
+    const data = {
+      objective_id: payload.data.objective_id,
+      creator_id: payload.data.creator,
+      description: payload.data.description,
+      reward: rewardAmount,
+      verifier_reward: verifierAmount,
+      is_completed: false,
+      usages: payload.data.usages,
+      usages_left: payload.data.usages,
+      verifications: payload.data.verifications,
+      verification_type: payload.data.verification_type,
+      deadline: deadlineDateTime,
+      created_block: blockInfo.blockNumber,
+      created_tx: payload.transactionId,
+      created_at: blockInfo.timestamp,
+      created_eos_account: payload.authorization[0].actor
+    }
 
-          tx.validators
-            .insert(validatorData)
+    db.withTransaction(tx => {
+      return tx.actions
+        .insert(data)
+        .then(savedAction => {
+          validators.map(v => {
+            const validatorData = {
+              action_id: savedAction.id,
+              validator_id: v,
+              created_block: blockInfo.blockNumber,
+              created_tx: payload.transactionId,
+              created_eos_account: payload.authorization[0].actor,
+              created_at: blockInfo.timestamp
+            }
+
+            tx.validators
+              .insert(validatorData)
+          })
         })
-      })
-  })
-    .catch(logError('Something went wrong while creating an action'))
+    })
+      .catch(logError('Something went wrong while creating an action'))
+  } else {
+    logError(`Objective with the id ${payload.data.objective_id} does not exist`)
+  }
 }
 
 function verifyAction (db, payload, blockInfo, context) {
