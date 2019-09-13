@@ -321,7 +321,10 @@ function newAction (db, payload, blockInfo, context) {
   const deadlineDateTime = new Date(payload.data.deadline * 1000).toISOString()
   const validators = payload.data.validators_str.length > 0 ? payload.data.validators_str.split('-') : []
 
-  const objective = await db.objectives.findOne({ id: payload.data.objective_id })
+  let objective;
+  (async () => {
+    objective = await db.objectives.findOne({ id: payload.data.objective_id })
+  })()
 
   if (objective != null) {
     const data = {
