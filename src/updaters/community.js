@@ -340,7 +340,7 @@ function newAction (db, payload, blockInfo, context) {
         usages_left: payload.data.usages,
         verifications: payload.data.verifications,
         verification_type: payload.data.verification_type,
-        deadline: deadlineDateTime,
+        deadline: payload.data.deadline > 0 ? deadlineDateTime : null,
         created_block: blockInfo.blockNumber,
         created_tx: payload.transactionId,
         created_at: blockInfo.timestamp,
