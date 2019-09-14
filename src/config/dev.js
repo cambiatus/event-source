@@ -5,9 +5,9 @@ module.exports = {
       token: 'bes.token',
       community: 'bes.cmm'
     },
-    url: 'http://eosio.bespiral.local',
     initialBlock: 1
     // initialBlock: 3580
+    url: 'https://eosio.cambiatus.io',
   },
   db: {
     user: 'lucca',
