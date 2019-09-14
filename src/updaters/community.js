@@ -42,9 +42,9 @@ function createCommunity (db, payload, blockInfo) {
       // invite community creator
       db.network
         .insert(networkData)
-        .catch(logError('Something went wrong while adding community creator to network'))
+        .catch(e => logError('Something went wrong while adding community creator to network', e))
     })
-    .catch(logError('Something went wrong while inserting a new community'))
+    .catch(e => logError('Something went wrong while inserting a new community', e))
 }
 
 function updateCommunity (db, payload, blockInfo, context) {
@@ -67,7 +67,7 @@ function updateCommunity (db, payload, blockInfo, context) {
     .update({
       symbol: symbol
     }, updateData)
-    .catch(logError('Something went wrong while updating community logo'))
+    .catch(e => logError('Something went wrong while updating community logo', e))
 }
 
 function netlink (db, payload, blockInfo, context) {
@@ -90,7 +90,7 @@ function netlink (db, payload, blockInfo, context) {
       if (total === '0') {
         db.users
           .insert(profileData)
-          .catch(logError('Something went wrong while inserting user'))
+          .catch(e => logError('Something went wrong while inserting user', e))
       }
     })
     .then(() => {
@@ -108,9 +108,9 @@ function netlink (db, payload, blockInfo, context) {
 
       db.network
         .insert(networkData)
-        .catch(logError('Something went wrong while adding user to network table'))
+        .catch(e => logError('Something went wrong while adding user to network table', e))
     })
-    .catch(logError('Something went wrong while counting for existing users'))
+    .catch(e => logError('Something went wrong while counting for existing users', e))
 }
 
 function createSale (db, payload, blockInfo, context) {
@@ -139,7 +139,7 @@ function createSale (db, payload, blockInfo, context) {
   // Insert sale on database
   db.sales
     .insert(data)
-    .catch(logError('Something went wrong while creating a new sale'))
+    .catch(e => logError('Something went wrong while creating a new sale', e))
 }
 
 function updateSale (db, payload, blockInfo, context) {
@@ -171,9 +171,9 @@ function updateSale (db, payload, blockInfo, context) {
 
       db.sales
         .update(whereArg, updateData)
-        .catch(logError('Something went wrong while updating sale, make sure that sale is not deleted'))
+        .catch(e => logError('Something went wrong while updating sale, make sure that sale is not deleted', e))
     })
-    .catch(logError('Something went wrong while looking for the sale, make sure that sale is not deleted'))
+    .catch(e => logError('Something went wrong while looking for the sale, make sure that sale is not deleted', e))
 }
 
 function deleteSale (db, payload, blockInfo, context) {
@@ -190,7 +190,7 @@ function deleteSale (db, payload, blockInfo, context) {
       id: payload.data.sale_id,
       is_deleted: false
     }, updateData)
-    .catch(logError('Something went wrong while removing sale, make sure that sale is not deleted'))
+    .catch(e => logError('Something went wrong while removing sale, make sure that sale is not deleted', e))
 }
 
 function reactSale (db, payload, blockInfo, context) {
@@ -243,7 +243,7 @@ function reactSale (db, payload, blockInfo, context) {
   }
 
   db.withTransaction(transaction)
-    .catch(logError('Something went wrong while reacting to a sale, make sure that sale is not deleted'))
+    .catch(e => logError('Something went wrong while reacting to a sale, make sure that sale is not deleted', e))
 }
 
 function transferSale (db, payload, blockInfo, context) {
@@ -289,7 +289,7 @@ function transferSale (db, payload, blockInfo, context) {
   }
 
   db.withTransaction(transaction)
-    .catch(logError('Something went wrong while transferring sale'))
+    .catch(e => logError('Something went wrong while transferring sale', e))
 }
 
 function newObjective (db, payload, blockInfo, context) {
@@ -310,7 +310,7 @@ function newObjective (db, payload, blockInfo, context) {
 
   db.objectives
     .insert(objectiveData)
-    .catch(logError('Something went wrong creating objective'))
+    .catch(e => logError('Something went wrong creating objective', e))
 }
 
 function newAction (db, payload, blockInfo, context) {
@@ -325,7 +325,7 @@ function newAction (db, payload, blockInfo, context) {
     .findOne({ id: payload.data.objective_id })
     .then(o => {
       if (o === null) {
-        logError(`Objective with the id ${payload.data.objective_id} does not exist`)
+        console.error(`Objective with the id ${payload.data.objective_id} does not exist`)
         return
       }
 
@@ -365,7 +365,7 @@ function newAction (db, payload, blockInfo, context) {
                 .insert(validatorData)
             })
           })
-      }).catch(logError('Something went wrong while creating an action'))
+      }).catch(e => logError('Something went wrong while creating an action', e))
     })
 }
 
@@ -391,9 +391,9 @@ function verifyAction (db, payload, blockInfo, context) {
         .update({
           id: payload.data.action_id
         }, updateData)
-        .catch(logError('Something went wrong while verifying an action'))
+        .catch(e => logError('Something went wrong while verifying an action', e))
     })
-    .catch(logError('Something went wrong while finding an action'))
+    .catch(e => logError('Something went wrong while finding an action', e))
 }
 
 function claimAction (db, payload, blockInfo, context) {
@@ -411,7 +411,7 @@ function claimAction (db, payload, blockInfo, context) {
 
   db.claims
     .insert(data)
-    .catch(logError('Something went wrong while inserting a claim'))
+    .catch(e => logError('Something went wrong while inserting a claim', e))
 }
 
 function verifyClaim (db, payload, blockInfo, context) {
@@ -472,7 +472,7 @@ function verifyClaim (db, payload, blockInfo, context) {
           })
       })
   })
-    .catch(logError('Something went wrong while inserting a check'))
+    .catch(e => logError('Something went wrong while inserting a check', e))
 }
 
 module.exports = {

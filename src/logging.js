@@ -7,10 +7,7 @@ function logInit () {
 
 function logError (message) {
   console.log(message)
-  return (error) => {
-    console.log(message, error)
-    Sentry.captureException(error)
-  }
+  Sentry.captureException(message)
 }
 
 function logExit (error) {
