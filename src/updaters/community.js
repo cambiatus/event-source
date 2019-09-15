@@ -318,7 +318,7 @@ function newAction (db, payload, blockInfo, context) {
 
   const [rewardAmount] = parseToken(payload.data.reward)
   const [verifierAmount] = parseToken(payload.data.verifier_reward)
-  const deadlineDateTime = new Date(payload.data.deadline * 1000).toISOString()
+  const deadlineDateTime = new Date(parseInt(payload.data.deadline))
   const validators = payload.data.validators_str.length > 0 ? payload.data.validators_str.split('-') : []
 
   db.objectives
