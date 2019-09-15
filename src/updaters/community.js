@@ -6,7 +6,7 @@ const {
 } = require('../eos_helper')
 
 function createCommunity (db, payload, blockInfo) {
-  console.log(`BeSpiral >>> Create Community`)
+  console.log(`BeSpiral >>> Create Community`, blockInfo.blockNumber)
 
   const [, symbol] = parseToken(payload.data.cmm_asset)
 
@@ -48,7 +48,7 @@ function createCommunity (db, payload, blockInfo) {
 }
 
 function updateCommunity (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Update community logo`)
+  console.log(`BeSpiral >>> Update community logo`, blockInfo.blockNumber)
 
   const [, symbol] = parseToken(payload.data.cmm_asset)
 
@@ -71,7 +71,7 @@ function updateCommunity (db, payload, blockInfo, context) {
 }
 
 function netlink (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Netlink`)
+  console.log(`BeSpiral >>> New Netlink`, blockInfo.blockNumber)
 
   // Check if user isn't already created
   db.users
@@ -114,7 +114,7 @@ function netlink (db, payload, blockInfo, context) {
 }
 
 function createSale (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Sale`)
+  console.log(`BeSpiral >>> New Sale`, blockInfo.blockNumber)
 
   const [price, symbol] = parseToken(payload.data.quantity)
   const trackStock = payload.data.track_stock === 1
@@ -143,7 +143,7 @@ function createSale (db, payload, blockInfo, context) {
 }
 
 function updateSale (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Update sale`)
+  console.log(`BeSpiral >>> Update sale`, blockInfo.blockNumber)
 
   const whereArg = {
     id: payload.data.sale_id,
@@ -177,7 +177,7 @@ function updateSale (db, payload, blockInfo, context) {
 }
 
 function deleteSale (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Remove sale`)
+  console.log(`BeSpiral >>> Remove sale`, blockInfo.blockNumber)
 
   // Soft delete sale
   const updateData = {
@@ -194,7 +194,7 @@ function deleteSale (db, payload, blockInfo, context) {
 }
 
 function reactSale (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Vote in a sale`)
+  console.log(`BeSpiral >>> Vote in a sale`, blockInfo.blockNumber)
 
   const transaction = (tx) => {
     // Find sale
@@ -247,7 +247,7 @@ function reactSale (db, payload, blockInfo, context) {
 }
 
 function transferSale (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Transfer Sale`)
+  console.log(`BeSpiral >>> New Transfer Sale`, blockInfo.blockNumber)
 
   const transaction = (tx) => {
     const [amount, symbol] = parseToken(payload.data.quantity)
@@ -293,7 +293,7 @@ function transferSale (db, payload, blockInfo, context) {
 }
 
 function newObjective (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Objective`)
+  console.log(`BeSpiral >>> New Objective`, blockInfo.blockNumber)
 
   const [, symbol] = parseToken(payload.data.cmm_asset)
 
@@ -314,7 +314,7 @@ function newObjective (db, payload, blockInfo, context) {
 }
 
 function newAction (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Objective Action`)
+  console.log(`BeSpiral >>> New Objective Action`, blockInfo.blockNumber)
 
   const [rewardAmount] = parseToken(payload.data.reward)
   const [verifierAmount] = parseToken(payload.data.verifier_reward)
@@ -370,7 +370,7 @@ function newAction (db, payload, blockInfo, context) {
 }
 
 function verifyAction (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Action verification`)
+  console.log(`BeSpiral >>> Action verification`, blockInfo.blockNumber)
 
   // Collect the action
   db.actions
@@ -397,7 +397,7 @@ function verifyAction (db, payload, blockInfo, context) {
 }
 
 function claimAction (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Claiming an Action`)
+  console.log(`BeSpiral >>> Claiming an Action`, blockInfo.blockNumber)
 
   const data = {
     action_id: payload.data.action_id,
@@ -415,7 +415,7 @@ function claimAction (db, payload, blockInfo, context) {
 }
 
 function verifyClaim (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Claim Verification`)
+  console.log(`BeSpiral >>> Claim Verification`, blockInfo.blockNumber)
 
   const checkData = {
     claim_id: payload.data.claim_id,
