@@ -401,7 +401,7 @@ function claimAction (db, payload, blockInfo, context) {
 
   const data = {
     action_id: payload.data.action_id,
-    claimer_id: payload.data.claimer,
+    claimer_id: payload.data.maker,
     is_verified: false,
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
