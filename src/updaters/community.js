@@ -54,7 +54,6 @@ function updateCommunity (db, payload, blockInfo, context) {
 
   const updateData = {
     symbol: symbol,
-    creator: payload.data.creator,
     logo: payload.data.logo,
     name: payload.data.name,
     description: payload.data.description,
