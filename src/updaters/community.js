@@ -158,6 +158,7 @@ function updateSale (db, payload, blockInfo, context) {
 
       const [price] = parseToken(payload.data.quantity)
       const units = sale.track_stock ? payload.data.units : 0
+      const trackStock = payload.data.track_stock === 1
 
       // Update sale data
       const updateData = {
@@ -165,6 +166,7 @@ function updateSale (db, payload, blockInfo, context) {
         description: payload.data.description,
         price: price,
         image: payload.data.image,
+        track_stock: trackStock,
         units: units
       }
 
@@ -401,7 +403,7 @@ function claimAction (db, payload, blockInfo, context) {
   const data = {
     action_id: payload.data.action_id,
     claimer_id: payload.data.maker,
-    is_verified: false,
+    is_verified: null,
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
