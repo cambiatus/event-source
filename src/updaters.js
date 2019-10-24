@@ -9,6 +9,7 @@ const {
   reactSale,
   transferSale,
   newObjective,
+  updateObjective,
   newAction,
   verifyAction,
   verifyClaim,
@@ -41,6 +42,10 @@ const updaters = [
     updater: newObjective
   },
   {
+    actionType: `${config.blockchain.contract.community}::updobjective`,
+    updater: updateObjective
+  },
+ {
     actionType: `${config.blockchain.contract.community}::newaction`,
     updater: newAction
   },

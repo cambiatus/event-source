@@ -314,6 +314,29 @@ function newObjective (db, payload, blockInfo, context) {
     .catch(e => logError('Something went wrong creating objective', e))
 }
 
+function updateObjective (db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> Update Objective`, blockInfo.blockNumber)
+
+  const where = { id: payload.objective_id }
+
+  db.objectives
+    .findOne(where)
+    .then(obj => {
+      if (obj == null) {
+        throw new Error('No objective found in the database')
+      }
+
+      const updateData = {
+        description: payload.description
+      }
+
+      db.objectives
+        .update(where, updateData)
+        .catch(e => logError('Something went wrong while updating objective', e))
+    })
+    .catch(e => logError('Something went wrong while looking for the objective', e))
+}
+
 function newAction (db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> New Objective Action`, blockInfo.blockNumber)
 
@@ -481,6 +504,7 @@ module.exports = {
   updateCommunity,
   netlink,
   newObjective,
+  updateObjective,
   newAction,
   verifyAction,
   createSale,
