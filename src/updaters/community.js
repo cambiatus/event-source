@@ -327,7 +327,7 @@ function updateObjective (db, payload, blockInfo, context) {
       }
 
       const updateData = {
-        description: payload.description
+        description: payload.data.description
       }
 
       db.objectives
