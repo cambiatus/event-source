@@ -317,7 +317,7 @@ function newObjective (db, payload, blockInfo, context) {
 function updateObjective (db, payload, blockInfo, context) {
   console.log(`BeSpiral >>> Update Objective`, blockInfo.blockNumber)
 
-  const where = { id: payload.objective_id }
+  const where = { id: payload.data.objective_id }
 
   db.objectives
     .findOne(where)
