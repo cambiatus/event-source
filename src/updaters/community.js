@@ -281,7 +281,11 @@ function transferSale (db, payload, blockInfo, context) {
           to_id: payload.data.to,
           amount: amount,
           units: payload.data.units,
-          community_id: symbol
+          community_id: symbol,
+          created_block: blockInfo.blockNumber,
+          created_tx: payload.transactionId,
+          created_at: blockInfo.timestamp,
+          created_eos_account: payload.authorization[0].actor
         }
 
         tx.sale_history
