@@ -522,7 +522,6 @@ module.exports = {
   netlink,
   newObjective,
   updateObjective,
-  newAction,
   upsertAction,
   verifyAction,
   createSale,
