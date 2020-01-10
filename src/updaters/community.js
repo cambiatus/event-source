@@ -379,7 +379,7 @@ function upsertAction (db, payload, blockInfo, context) {
         // Update
         data = Object.assign(data, {
           id: payload.data.action_id,
-          is_completed: payload.data.is_completed
+          is_completed: payload.data.is_completed === 1
         })
       }
 
@@ -390,6 +390,7 @@ function upsertAction (db, payload, blockInfo, context) {
             // In case of a update delete all older validators and add new ones
             if (payload.data.action_id > 0) {
               db.validators.destroy({ action_id: payload.data.action_id })
+                .catch(e => logError('Something went wrong while deleting old validators', e))
             }
 
             validators.map(v => {
@@ -404,6 +405,7 @@ function upsertAction (db, payload, blockInfo, context) {
 
               tx.validators
                 .insert(validatorData)
+                .catch(e => logError('Something went wrong while adding a validator to the list', e))
             })
           })
       }).catch(e => logError('Something went wrong while creating an action', e))

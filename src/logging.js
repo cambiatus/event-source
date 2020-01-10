@@ -5,9 +5,13 @@ function logInit () {
   Sentry.init(config.sentry)
 }
 
-function logError (message) {
+function logError (message, error) {
   console.log(message)
-  Sentry.captureException(message)
+  console.log(error)
+  Sentry.configureScope(scope => {
+    scope.captureException(message)
+    scope.setExtra('error', error)
+  })
 }
 
 function logExit (error) {
