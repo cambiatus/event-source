@@ -341,8 +341,8 @@ function updateObjective (db, payload, blockInfo, context) {
     .catch(e => logError('Something went wrong while looking for the objective', e))
 }
 
-function newAction (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Objective Action`, blockInfo.blockNumber)
+function upsertAction (db, payload, blockInfo, context) {
+  console.log(`BeSpiral >>> Upsert Action`, blockInfo.blockNumber)
 
   const [rewardAmount] = parseToken(payload.data.reward)
   const [verifierAmount] = parseToken(payload.data.verifier_reward)
@@ -357,7 +357,7 @@ function newAction (db, payload, blockInfo, context) {
         return
       }
 
-      const data = {
+      let data = {
         objective_id: payload.data.objective_id,
         creator_id: payload.data.creator,
         description: payload.data.description,
@@ -375,10 +375,24 @@ function newAction (db, payload, blockInfo, context) {
         created_eos_account: payload.authorization[0].actor
       }
 
+      if (payload.data.action_id > 0) {
+        // Update
+        data = Object.assign(data, {
+          id: payload.data.action_id,
+          is_completed: payload.data.is_completed === 1
+        })
+      }
+
       db.withTransaction(tx => {
         return tx.actions
-          .insert(data)
+          .save(data)
           .then(savedAction => {
+            // In case of a update delete all older validators and add new ones
+            if (payload.data.action_id > 0) {
+              db.validators.destroy({ action_id: payload.data.action_id })
+                .catch(e => logError('Something went wrong while deleting old validators', e))
+            }
+
             validators.map(v => {
               const validatorData = {
                 action_id: savedAction.id,
@@ -391,6 +405,7 @@ function newAction (db, payload, blockInfo, context) {
 
               tx.validators
                 .insert(validatorData)
+                .catch(e => logError('Something went wrong while adding a validator to the list', e))
             })
           })
       }).catch(e => logError('Something went wrong while creating an action', e))
@@ -509,7 +524,7 @@ module.exports = {
   netlink,
   newObjective,
   updateObjective,
-  newAction,
+  upsertAction,
   verifyAction,
   createSale,
   updateSale,
