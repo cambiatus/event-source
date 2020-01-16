@@ -379,6 +379,7 @@ function upsertAction (db, payload, blockInfo, context) {
         // Update
         data = Object.assign(data, {
           id: payload.data.action_id,
+          usages_left: payload.data.usages_left,
           is_completed: payload.data.is_completed === 1
         })
       }
