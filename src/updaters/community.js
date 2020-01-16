@@ -393,10 +393,10 @@ function upsertAction (db, payload, blockInfo, context) {
                 .catch(e => logError('Something went wrong while deleting old validators', e))
             }
 
-            validators.map(v => {
+            validators.map(validator => {
               const validatorData = {
                 action_id: savedAction.id,
-                validator_id: v,
+                validator_id: validator,
                 created_block: blockInfo.blockNumber,
                 created_tx: payload.transactionId,
                 created_eos_account: payload.authorization[0].actor,
@@ -408,7 +408,8 @@ function upsertAction (db, payload, blockInfo, context) {
                 .catch(e => logError('Something went wrong while adding a validator to the list', e))
             })
           })
-      }).catch(e => logError('Something went wrong while creating an action', e))
+          .catch(e => logError('Error while creating an action', e))
+      }).catch(e => logError('Something went wrong while executing transaction to create an action', e))
     })
 }
 
