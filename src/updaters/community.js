@@ -505,7 +505,7 @@ function verifyClaim (db, payload, blockInfo, context) {
                         .update(claim.id, { is_verified: true })
                     }
 
-                    if (action.usages > 0 && (action.usages_left - 1 <= 0)) {
+                    if (action.usages > 0 && (action.usages_left - 1 === 0)) {
                       const updateData = {
                         usages_left: action.usages_left - 1,
                         is_completed: true
