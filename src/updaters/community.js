@@ -379,6 +379,7 @@ function upsertAction (db, payload, blockInfo, context) {
         // Update
         data = Object.assign(data, {
           id: payload.data.action_id,
+          usages_left: payload.data.usages_left,
           is_completed: payload.data.is_completed === 1
         })
       }
@@ -393,10 +394,10 @@ function upsertAction (db, payload, blockInfo, context) {
                 .catch(e => logError('Something went wrong while deleting old validators', e))
             }
 
-            validators.map(v => {
+            validators.map(validator => {
               const validatorData = {
                 action_id: savedAction.id,
-                validator_id: v,
+                validator_id: validator,
                 created_block: blockInfo.blockNumber,
                 created_tx: payload.transactionId,
                 created_eos_account: payload.authorization[0].actor,
@@ -408,7 +409,8 @@ function upsertAction (db, payload, blockInfo, context) {
                 .catch(e => logError('Something went wrong while adding a validator to the list', e))
             })
           })
-      }).catch(e => logError('Something went wrong while creating an action', e))
+          .catch(e => logError('Error while creating an action', e))
+      }).catch(e => logError('Something went wrong while executing transaction to create an action', e))
     })
 }
 
@@ -503,13 +505,15 @@ function verifyClaim (db, payload, blockInfo, context) {
                         .update(claim.id, { is_verified: true })
                     }
 
-                    const updateData = {
-                      usages_left: action.usages_left - 1,
-                      is_completed: action.usages > 0 && (action.usages_left - 1 <= 0)
-                    }
+                    if (action.usages > 0 && (action.usages_left - 1 === 0)) {
+                      const updateData = {
+                        usages_left: action.usages_left - 1,
+                        is_completed: true
+                      }
 
-                    tx.actions
-                      .update(action.id, updateData)
+                      tx.actions
+                        .update(action.id, updateData)
+                    }
                   })
               })
           })
