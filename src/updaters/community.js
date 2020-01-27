@@ -505,14 +505,15 @@ function verifyClaim (db, payload, blockInfo, context) {
                       tx.claims
                         .update(claim.id, { is_verified: true })
 
-                      if (action.usages > 0 && (action.usages_left - 1 === 0)) {
-                      const updateData = {
-                        usages_left: action.usages_left - 1,
-                        is_completed: true
-                      }
+                      // Check if all usages are used
+                      if (action.usages > 0 && (action.usages_left >= 1)) {
+                        const updateData = {
+                          usages_left: action.usages_left - 1,
+                          is_completed: (action.usages_left - 1 === 0)
+                        }
 
-                      tx.actions.update(action.id, updateData)
-                    }
+                        tx.actions.update(action.id, updateData)
+                      }
                     }
                   })
               })
