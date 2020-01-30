@@ -473,26 +473,27 @@ function verifyClaim (db, payload, blockInfo, context) {
   }
 
   db.withTransaction(tx => {
+    // Save the Check
     return tx.checks
       .insert(checkData)
-    // Save the Check
       .then(check => {
-        tx.claims
         // Find the checks claim
+        tx.claims
           .findOne(check.claim_id)
           .then(claim => {
             if (claim === null) {
               throw new Error('claim not available')
             }
-            tx.actions
+
             // Find the claims action
+            tx.actions
               .findOne(claim.action_id)
-            // Count verified checks
               .then(action => {
                 if (action === null) {
                   throw new Error('action not available')
                 }
 
+                // Count verified checks
                 tx.checks
                   .count({
                     claim_id: claim.id,
@@ -503,16 +504,16 @@ function verifyClaim (db, payload, blockInfo, context) {
                     if (Number(total) >= action.verifications) {
                       tx.claims
                         .update(claim.id, { is_verified: true })
-                    }
 
-                    if (action.usages > 0 && (action.usages_left - 1 === 0)) {
-                      const updateData = {
-                        usages_left: action.usages_left - 1,
-                        is_completed: true
+                      // Check if all usages are used
+                      if (action.usages > 0 && (action.usages_left >= 1)) {
+                        const updateData = {
+                          usages_left: action.usages_left - 1,
+                          is_completed: (action.usages_left - 1 === 0)
+                        }
+
+                        tx.actions.update(action.id, updateData)
                       }
-
-                      tx.actions
-                        .update(action.id, updateData)
                     }
                   })
               })
