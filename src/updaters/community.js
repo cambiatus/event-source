@@ -98,7 +98,7 @@ function netlink (db, payload, blockInfo, context) {
       const networkData = {
         community_id: symbol,
         account_id: payload.data.new_user,
-        invited_by_id: payload.authorization[0].actor,
+        invited_by_id: payload.data.inviter,
         created_block: blockInfo.blockNumber,
         created_tx: payload.transactionId,
         created_eos_account: payload.authorization[0].actor,
