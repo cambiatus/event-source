@@ -20,7 +20,7 @@ function createToken (db, payload, blockInfo, context) {
 
   db.communities
     .update({ symbol: symbol }, updateData)
-    .catch(logError('Something went wrong while updating community logo'))
+    .catch(e => logError('Something went wrong creating token', e))
 }
 
 function transfer (db, payload, blockInfo, context) {
@@ -42,7 +42,7 @@ function transfer (db, payload, blockInfo, context) {
 
   db.transfers
     .insert(transferData)
-    .catch(logError('Something went wrong while updating transfer data'))
+    .catch(e => logError('Something went wrong while updating transfer data', e))
 }
 
 function issue (db, payload, blockInfo, context) {
@@ -62,7 +62,7 @@ function issue (db, payload, blockInfo, context) {
 
   db.mints
     .insert(data)
-    .catch(logError('Something went wrong while adding mint to community_mints table'))
+    .catch(e => logError('Something went wrong while adding mint to community_mints table', e))
 }
 
 function retire (db, payload, blockInfo, context) {}
