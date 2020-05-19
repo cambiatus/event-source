@@ -542,20 +542,20 @@ function verifyClaim (db, payload, blockInfo, context) {
             throw new Error('action not available')
           }
 
-          // Count verified checks
+          // Count positive votes
           tx.checks
-            .count({
-              claim_id: claim.id,
-              is_verified: true
-            })
+            .count({ claim_id: claim.id, is_verified: true })
             .then(positiveVotes => {
+              const positive = Number(positiveVotes)
+              // Count negative votes
               tx.checks
                 .count({ claim_id: claim.id, is_verified: false })
                 .then(negativeVotes => {
+                  const negative = Number(negativeVotes)
                   let status = 'pending'
 
-                  if (positiveVotes + negativeVotes >= action.verifications) {
-                    if (positiveVotes > negativeVotes) {
+                  if (positive + negative >= action.verifications) {
+                    if (positive > negative) {
                       status = 'approved'
                     } else {
                       status = 'rejected'
