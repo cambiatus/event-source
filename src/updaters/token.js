@@ -1,12 +1,8 @@
-const {
-  logError
-} = require('../logging')
-const {
-  parseToken
-} = require('../eos_helper')
+const { logError } = require('../logging')
+const { parseToken } = require('../eos_helper')
 
 function createToken (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Create Token`)
+  console.log(`Cambiatus >>> Create Token`)
 
   const [, symbol] = parseToken(payload.data.max_supply)
 
@@ -24,9 +20,9 @@ function createToken (db, payload, blockInfo, context) {
 }
 
 function transfer (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Transfer`)
+  console.log(`Cambiatus >>> New Transfer`)
 
-  const [ amount, symbol ] = parseToken(payload.data.quantity)
+  const [amount, symbol] = parseToken(payload.data.quantity)
 
   const transferData = {
     from_id: payload.data.from,
@@ -42,13 +38,15 @@ function transfer (db, payload, blockInfo, context) {
 
   db.transfers
     .insert(transferData)
-    .catch(e => logError('Something went wrong while updating transfer data', e))
+    .catch(e =>
+      logError('Something went wrong while updating transfer data', e)
+    )
 }
 
 function issue (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Issue`)
+  console.log(`Cambiatus >>> New Issue`)
 
-  const [ amount, symbol ] = parseToken(payload.data.quantity)
+  const [amount, symbol] = parseToken(payload.data.quantity)
   const data = {
     community_id: symbol,
     to_id: payload.data.to,
@@ -62,7 +60,12 @@ function issue (db, payload, blockInfo, context) {
 
   db.mints
     .insert(data)
-    .catch(e => logError('Something went wrong while adding mint to community_mints table', e))
+    .catch(e =>
+      logError(
+        'Something went wrong while adding mint to community_mints table',
+        e
+      )
+    )
 }
 
 function retire (db, payload, blockInfo, context) {}

@@ -1,4 +1,4 @@
-# BeSpiral event-source
+# Cambiatus event-source
 
 ## Development
 
@@ -11,12 +11,12 @@ vim .git/hooks/pre-commit
 And add the following:
 
 ```shell
-#!/bin/bash 
- 
-# Ensure all JavaScript files staged for commit pass standard code style 
+#!/bin/bash
+
+# Ensure all JavaScript files staged for commit pass standard code style
 function xargs-r() {
-  # Portable version of "xargs -r". The -r flag is a GNU extension that 
-  # prevents xargs from running if there are no input files. 
+  # Portable version of "xargs -r". The -r flag is a GNU extension that
+  # prevents xargs from running if there are no input files.
   if IFS= read -r -d $'\n' path; then
     { echo "$path"; cat; } | xargs $@
   fi
