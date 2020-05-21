@@ -1,12 +1,8 @@
-const {
-  logError
-} = require('../logging')
-const {
-  parseToken
-} = require('../eos_helper')
+const { logError } = require('../logging')
+const { parseToken } = require('../eos_helper')
 
 function createCommunity (db, payload, blockInfo) {
-  console.log(`BeSpiral >>> Create Community`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
 
   const [, symbol] = parseToken(payload.data.cmm_asset)
 
@@ -42,13 +38,20 @@ function createCommunity (db, payload, blockInfo) {
       // invite community creator
       db.network
         .insert(networkData)
-        .catch(e => logError('Something went wrong while adding community creator to network', e))
+        .catch(e =>
+          logError(
+            'Something went wrong while adding community creator to network',
+            e
+          )
+        )
     })
-    .catch(e => logError('Something went wrong while inserting a new community', e))
+    .catch(e =>
+      logError('Something went wrong while inserting a new community', e)
+    )
 }
 
 function updateCommunity (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Update community logo`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> Update community logo`, blockInfo.blockNumber)
 
   const [, symbol] = parseToken(payload.data.cmm_asset)
 
@@ -63,14 +66,19 @@ function updateCommunity (db, payload, blockInfo, context) {
 
   // Find the community
   db.communities
-    .update({
-      symbol: symbol
-    }, updateData)
-    .catch(e => logError('Something went wrong while updating community logo', e))
+    .update(
+      {
+        symbol: symbol
+      },
+      updateData
+    )
+    .catch(e =>
+      logError('Something went wrong while updating community logo', e)
+    )
 }
 
 function netlink (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Netlink`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> New Netlink`, blockInfo.blockNumber)
 
   // Check if user isn't already created
   db.users
@@ -107,13 +115,17 @@ function netlink (db, payload, blockInfo, context) {
 
       db.network
         .insert(networkData)
-        .catch(e => logError('Something went wrong while adding user to network table', e))
+        .catch(e =>
+          logError('Something went wrong while adding user to network table', e)
+        )
     })
-    .catch(e => logError('Something went wrong while counting for existing users', e))
+    .catch(e =>
+      logError('Something went wrong while counting for existing users', e)
+    )
 }
 
 function createSale (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Sale`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> New Sale`, blockInfo.blockNumber)
 
   const [price, symbol] = parseToken(payload.data.quantity)
   const trackStock = payload.data.track_stock === 1
@@ -142,7 +154,7 @@ function createSale (db, payload, blockInfo, context) {
 }
 
 function updateSale (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Update sale`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> Update sale`, blockInfo.blockNumber)
 
   const whereArg = {
     id: payload.data.sale_id,
@@ -172,13 +184,23 @@ function updateSale (db, payload, blockInfo, context) {
 
       db.sales
         .update(whereArg, updateData)
-        .catch(e => logError('Something went wrong while updating sale, make sure that sale is not deleted', e))
+        .catch(e =>
+          logError(
+            'Something went wrong while updating sale, make sure that sale is not deleted',
+            e
+          )
+        )
     })
-    .catch(e => logError('Something went wrong while looking for the sale, make sure that sale is not deleted', e))
+    .catch(e =>
+      logError(
+        'Something went wrong while looking for the sale, make sure that sale is not deleted',
+        e
+      )
+    )
 }
 
 function deleteSale (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Remove sale`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> Remove sale`, blockInfo.blockNumber)
 
   // Soft delete sale
   const updateData = {
@@ -187,17 +209,25 @@ function deleteSale (db, payload, blockInfo, context) {
   }
 
   db.sales
-    .update({
-      id: payload.data.sale_id,
-      is_deleted: false
-    }, updateData)
-    .catch(e => logError('Something went wrong while removing sale, make sure that sale is not deleted', e))
+    .update(
+      {
+        id: payload.data.sale_id,
+        is_deleted: false
+      },
+      updateData
+    )
+    .catch(e =>
+      logError(
+        'Something went wrong while removing sale, make sure that sale is not deleted',
+        e
+      )
+    )
 }
 
 function reactSale (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Vote in a sale`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> Vote in a sale`, blockInfo.blockNumber)
 
-  const transaction = (tx) => {
+  const transaction = tx => {
     // Find sale
     tx.sales
       .findOne({
@@ -215,42 +245,42 @@ function reactSale (db, payload, blockInfo, context) {
         }
 
         // Check if sale was previously voted
-        tx.sale_ratings
-          .count(whereArg)
-          .then(total => {
-            if (total === '0') {
-              const data = {
-                sale_id: sale.id,
-                account_id: payload.data.from,
-                rating: payload.data.type,
-                created_block: blockInfo.blockNumber,
-                created_tx: payload.transactionId,
-                created_eos_account: payload.authorization[0].actor,
-                created_at: blockInfo.timestamp
-              }
-
-              tx.sale_ratings
-                .insert(data)
-            } else {
-              const updateData = {
-                rating: payload.data.type
-              }
-
-              tx.sale_ratings
-                .update(whereArg, updateData)
+        tx.sale_ratings.count(whereArg).then(total => {
+          if (total === '0') {
+            const data = {
+              sale_id: sale.id,
+              account_id: payload.data.from,
+              rating: payload.data.type,
+              created_block: blockInfo.blockNumber,
+              created_tx: payload.transactionId,
+              created_eos_account: payload.authorization[0].actor,
+              created_at: blockInfo.timestamp
             }
-          })
+
+            tx.sale_ratings.insert(data)
+          } else {
+            const updateData = {
+              rating: payload.data.type
+            }
+
+            tx.sale_ratings.update(whereArg, updateData)
+          }
+        })
       })
   }
 
-  db.withTransaction(transaction)
-    .catch(e => logError('Something went wrong while reacting to a sale, make sure that sale is not deleted', e))
+  db.withTransaction(transaction).catch(e =>
+    logError(
+      'Something went wrong while reacting to a sale, make sure that sale is not deleted',
+      e
+    )
+  )
 }
 
 function transferSale (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Transfer Sale`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> New Transfer Sale`, blockInfo.blockNumber)
 
-  const transaction = (tx) => {
+  const transaction = tx => {
     const [amount, symbol] = parseToken(payload.data.quantity)
 
     const whereArg = {
@@ -259,46 +289,43 @@ function transferSale (db, payload, blockInfo, context) {
     }
 
     // Find sale
-    return tx.sales
-      .findOne(whereArg)
-      .then(sale => {
-        if (sale === null) {
-          throw new Error('No sale data available')
-        }
+    return tx.sales.findOne(whereArg).then(sale => {
+      if (sale === null) {
+        throw new Error('No sale data available')
+      }
 
-        // Update sale units
-        const updateData = {
-          units: sale.units - parseInt(payload.data.units)
-        }
+      // Update sale units
+      const updateData = {
+        units: sale.units - parseInt(payload.data.units)
+      }
 
-        tx.sales
-          .update(whereArg, updateData)
+      tx.sales.update(whereArg, updateData)
 
-        // Insert new sale transfer history
-        const insertData = {
-          sale_id: sale.id,
-          from_id: payload.data.from,
-          to_id: payload.data.to,
-          amount: amount,
-          units: payload.data.units,
-          community_id: symbol,
-          created_block: blockInfo.blockNumber,
-          created_tx: payload.transactionId,
-          created_at: blockInfo.timestamp,
-          created_eos_account: payload.authorization[0].actor
-        }
+      // Insert new sale transfer history
+      const insertData = {
+        sale_id: sale.id,
+        from_id: payload.data.from,
+        to_id: payload.data.to,
+        amount: amount,
+        units: payload.data.units,
+        community_id: symbol,
+        created_block: blockInfo.blockNumber,
+        created_tx: payload.transactionId,
+        created_at: blockInfo.timestamp,
+        created_eos_account: payload.authorization[0].actor
+      }
 
-        tx.sale_history
-          .insert(insertData)
-      })
+      tx.sale_history.insert(insertData)
+    })
   }
 
-  db.withTransaction(transaction)
-    .catch(e => logError('Something went wrong while transferring sale', e))
+  db.withTransaction(transaction).catch(e =>
+    logError('Something went wrong while transferring sale', e)
+  )
 }
 
 function newObjective (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> New Objective`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> New Objective`, blockInfo.blockNumber)
 
   const [, symbol] = parseToken(payload.data.cmm_asset)
 
@@ -319,7 +346,7 @@ function newObjective (db, payload, blockInfo, context) {
 }
 
 function updateObjective (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Update Objective`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> Update Objective`, blockInfo.blockNumber)
 
   const where = { id: payload.data.objective_id }
 
@@ -336,86 +363,109 @@ function updateObjective (db, payload, blockInfo, context) {
 
       db.objectives
         .update(where, updateData)
-        .catch(e => logError('Something went wrong while updating objective', e))
+        .catch(e =>
+          logError('Something went wrong while updating objective', e)
+        )
     })
-    .catch(e => logError('Something went wrong while looking for the objective', e))
+    .catch(e =>
+      logError('Something went wrong while looking for the objective', e)
+    )
 }
 
 function upsertAction (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Upsert Action`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> Upsert Action`, blockInfo.blockNumber)
 
   const [rewardAmount] = parseToken(payload.data.reward)
   const [verifierAmount] = parseToken(payload.data.verifier_reward)
   const deadlineDateTime = new Date(parseInt(payload.data.deadline))
-  const validators = payload.data.validators_str.length > 0 ? payload.data.validators_str.split('-') : []
+  const validators =
+    payload.data.validators_str.length > 0
+      ? payload.data.validators_str.split('-')
+      : []
 
-  db.objectives
-    .findOne({ id: payload.data.objective_id })
-    .then(o => {
-      if (o === null) {
-        console.error(`Objective with the id ${payload.data.objective_id} does not exist`)
-        return
-      }
+  db.objectives.findOne({ id: payload.data.objective_id }).then(o => {
+    if (o === null) {
+      console.error(
+        `Objective with the id ${payload.data.objective_id} does not exist`
+      )
+      return
+    }
 
-      let data = {
-        objective_id: payload.data.objective_id,
-        creator_id: payload.data.creator,
-        description: payload.data.description,
-        reward: rewardAmount,
-        verifier_reward: verifierAmount,
-        is_completed: false,
-        usages: payload.data.usages,
-        usages_left: payload.data.usages,
-        verifications: payload.data.verifications,
-        verification_type: payload.data.verification_type,
-        deadline: payload.data.deadline > 0 ? deadlineDateTime : null,
-        created_block: blockInfo.blockNumber,
-        created_tx: payload.transactionId,
-        created_at: blockInfo.timestamp,
-        created_eos_account: payload.authorization[0].actor
-      }
+    let data = {
+      objective_id: payload.data.objective_id,
+      creator_id: payload.data.creator,
+      description: payload.data.description,
+      reward: rewardAmount,
+      verifier_reward: verifierAmount,
+      is_completed: false,
+      usages: payload.data.usages,
+      usages_left: payload.data.usages,
+      verifications: payload.data.verifications,
+      verification_type: payload.data.verification_type,
+      deadline: payload.data.deadline > 0 ? deadlineDateTime : null,
+      created_block: blockInfo.blockNumber,
+      created_tx: payload.transactionId,
+      created_at: blockInfo.timestamp,
+      created_eos_account: payload.authorization[0].actor
+    }
 
-      if (payload.data.action_id > 0) {
-        // Update
-        data = Object.assign(data, {
-          id: payload.data.action_id,
-          usages_left: payload.data.usages_left,
-          is_completed: payload.data.is_completed === 1
-        })
-      }
+    if (payload.data.action_id > 0) {
+      // Update
+      data = Object.assign(data, {
+        id: payload.data.action_id,
+        usages_left: payload.data.usages_left,
+        is_completed: payload.data.is_completed === 1
+      })
+    }
 
-      db.withTransaction(tx => {
-        return tx.actions
-          .save(data)
-          .then(savedAction => {
-            // In case of a update delete all older validators and add new ones
-            if (payload.data.action_id > 0) {
-              db.validators.destroy({ action_id: payload.data.action_id })
-                .catch(e => logError('Something went wrong while deleting old validators', e))
+    db.withTransaction(tx => {
+      return tx.actions
+        .save(data)
+        .then(savedAction => {
+          // In case of a update delete all older validators and add new ones
+          if (payload.data.action_id > 0) {
+            db.validators
+              .destroy({ action_id: payload.data.action_id })
+              .catch(e =>
+                logError(
+                  'Something went wrong while deleting old validators',
+                  e
+                )
+              )
+          }
+
+          validators.map(validator => {
+            const validatorData = {
+              action_id: savedAction.id,
+              validator_id: validator,
+              created_block: blockInfo.blockNumber,
+              created_tx: payload.transactionId,
+              created_eos_account: payload.authorization[0].actor,
+              created_at: blockInfo.timestamp
             }
 
-            validators.map(validator => {
-              const validatorData = {
-                action_id: savedAction.id,
-                validator_id: validator,
-                created_block: blockInfo.blockNumber,
-                created_tx: payload.transactionId,
-                created_eos_account: payload.authorization[0].actor,
-                created_at: blockInfo.timestamp
-              }
-
-              tx.validators
-                .insert(validatorData)
-                .catch(e => logError('Something went wrong while adding a validator to the list', e))
-            })
+            tx.validators
+              .insert(validatorData)
+              .catch(e =>
+                logError(
+                  'Something went wrong while adding a validator to the list',
+                  e
+                )
+              )
           })
-          .catch(e => logError('Error while creating an action', e))
-      }).catch(e => logError('Something went wrong while executing transaction to create an action', e))
-    })
+        })
+        .catch(e => logError('Error while creating an action', e))
+    }).catch(e =>
+      logError(
+        'Something went wrong while executing transaction to create an action',
+        e
+      )
+    )
+  })
 }
 
 function verifyAction (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Action verification`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> Action verification`, blockInfo.blockNumber)
 
   // Collect the action
   db.actions
@@ -433,21 +483,26 @@ function verifyAction (db, payload, blockInfo, context) {
       }
 
       db.actions
-        .update({
-          id: payload.data.action_id
-        }, updateData)
-        .catch(e => logError('Something went wrong while verifying an action', e))
+        .update(
+          {
+            id: payload.data.action_id
+          },
+          updateData
+        )
+        .catch(e =>
+          logError('Something went wrong while verifying an action', e)
+        )
     })
     .catch(e => logError('Something went wrong while finding an action', e))
 }
 
 function claimAction (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Claiming an Action`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> Claiming an Action`, blockInfo.blockNumber)
 
   const data = {
     action_id: payload.data.action_id,
     claimer_id: payload.data.maker,
-    is_verified: false,
+    status: 'pending',
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
@@ -460,7 +515,7 @@ function claimAction (db, payload, blockInfo, context) {
 }
 
 function verifyClaim (db, payload, blockInfo, context) {
-  console.log(`BeSpiral >>> Claim Verification`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> Claim Verification`, blockInfo.blockNumber)
 
   const checkData = {
     claim_id: payload.data.claim_id,
@@ -474,53 +529,55 @@ function verifyClaim (db, payload, blockInfo, context) {
 
   db.withTransaction(tx => {
     // Save the Check
-    return tx.checks
-      .insert(checkData)
-      .then(check => {
-        // Find the checks claim
-        tx.claims
-          .findOne(check.claim_id)
-          .then(claim => {
-            if (claim === null) {
-              throw new Error('claim not available')
-            }
+    return tx.checks.insert(checkData).then(check => {
+      // Find the checks claim
+      tx.claims.findOne(check.claim_id).then(claim => {
+        if (claim === null) {
+          throw new Error('claim not available')
+        }
 
-            // Find the claims action
-            tx.actions
-              .findOne(claim.action_id)
-              .then(action => {
-                if (action === null) {
-                  throw new Error('action not available')
-                }
+        // Find the claims action
+        tx.actions.findOne(claim.action_id).then(action => {
+          if (action === null) {
+            throw new Error('action not available')
+          }
 
-                // Count verified checks
-                tx.checks
-                  .count({
-                    claim_id: claim.id,
-                    is_verified: true
-                  })
-                  .then(total => {
-                    // Set claim as completed
-                    if (Number(total) >= action.verifications) {
-                      tx.claims
-                        .update(claim.id, { is_verified: true })
+          // Count positive votes
+          tx.checks
+            .count({ claim_id: claim.id, is_verified: true })
+            .then(positiveVotes => {
+              const positive = Number(positiveVotes)
+              // Count negative votes
+              tx.checks
+                .count({ claim_id: claim.id, is_verified: false })
+                .then(negativeVotes => {
+                  const negative = Number(negativeVotes)
+                  let status = 'pending'
 
-                      // Check if all usages are used
-                      if (action.usages > 0 && (action.usages_left >= 1)) {
-                        const updateData = {
-                          usages_left: action.usages_left - 1,
-                          is_completed: (action.usages_left - 1 === 0)
-                        }
-
-                        tx.actions.update(action.id, updateData)
-                      }
+                  if (positive + negative >= action.verifications) {
+                    if (positive > negative) {
+                      status = 'approved'
+                    } else {
+                      status = 'rejected'
                     }
-                  })
-              })
-          })
+                  }
+
+                  tx.claims.update(claim.id, { status: status })
+
+                  if (status !== 'pending') {
+                    if (!action.is_completed && action.usages > 0) {
+                      tx.actions.update(action.id, {
+                        usages_left: action.usages_left - 1,
+                        is_completed: action.usages_left - 1 === 0
+                      })
+                    }
+                  }
+                })
+            })
+        })
       })
-  })
-    .catch(e => logError('Something went wrong while inserting a check', e))
+    })
+  }).catch(e => logError('Something went wrong while inserting a check', e))
 }
 
 module.exports = {
