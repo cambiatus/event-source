@@ -15,6 +15,9 @@ function createCommunity (db, payload, blockInfo) {
     inviter_reward: parseToken(payload.data.inviter_reward)[0],
     invited_reward: parseToken(payload.data.invited_reward)[0],
 
+    has_actions: payload.data.has_objectives === 1,
+    has_shop: payload.data.has_shop === 1,
+
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
@@ -61,17 +64,14 @@ function updateCommunity (db, payload, blockInfo, context) {
     name: payload.data.name,
     description: payload.data.description,
     inviter_reward: parseToken(payload.data.inviter_reward)[0],
-    invited_reward: parseToken(payload.data.invited_reward)[0]
+    invited_reward: parseToken(payload.data.invited_reward)[0],
+    has_actions: payload.data.has_objectives === 1,
+    has_shop: payload.data.has_shop === 1
   }
 
   // Find the community
   db.communities
-    .update(
-      {
-        symbol: symbol
-      },
-      updateData
-    )
+    .update({ symbol: symbol }, updateData)
     .catch(e =>
       logError('Something went wrong while updating community logo', e)
     )
