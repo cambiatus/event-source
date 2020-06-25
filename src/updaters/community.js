@@ -15,7 +15,7 @@ function createCommunity (db, payload, blockInfo) {
     inviter_reward: parseToken(payload.data.inviter_reward)[0],
     invited_reward: parseToken(payload.data.invited_reward)[0],
 
-    has_actions: payload.data.has_objectives === 1,
+    has_objectives: payload.data.has_objectives === 1,
     has_shop: payload.data.has_shop === 1,
 
     created_block: blockInfo.blockNumber,
@@ -65,7 +65,7 @@ function updateCommunity (db, payload, blockInfo, context) {
     description: payload.data.description,
     inviter_reward: parseToken(payload.data.inviter_reward)[0],
     invited_reward: parseToken(payload.data.invited_reward)[0],
-    has_actions: payload.data.has_objectives === 1,
+    has_objectives: payload.data.has_objectives === 1,
     has_shop: payload.data.has_shop === 1
   }
 
