@@ -568,7 +568,7 @@ function verifyClaim (db, payload, blockInfo, context) {
                     if (!action.is_completed && action.usages > 0) {
                       tx.actions.update(action.id, {
                         usages_left: action.usages_left - 1,
-                        is_completed: action.usages_left - 1 === 0
+                        is_completed: action.usages_left - 1 !== 0
                       })
                     }
                   }
