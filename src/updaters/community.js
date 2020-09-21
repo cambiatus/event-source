@@ -113,10 +113,31 @@ function netlink (db, payload, blockInfo, context) {
         created_at: blockInfo.timestamp
       }
 
+      // Check if user don't already belong to the community
       db.network
-        .insert(networkData)
+        .count({
+          community_id: symbol,
+          account_id: payload.data.new_user
+        })
+        .then(networkTotal => {
+          if (networkTotal !== '0') {
+            return
+          }
+
+          db.network
+            .insert(networkData)
+            .catch(e =>
+              logError(
+                'Something went wrong while adding user to network table',
+                e
+              )
+            )
+        })
         .catch(e =>
-          logError('Something went wrong while adding user to network table', e)
+          logError(
+            'Something went wrong while trying to insert user to the network',
+            e
+          )
         )
     })
     .catch(e =>
