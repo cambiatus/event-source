@@ -17,6 +17,7 @@ function createCommunity (db, payload, blockInfo) {
 
     has_objectives: payload.data.has_objectives === 1,
     has_shop: payload.data.has_shop === 1,
+    has_kyc: payload.data.has_kyc === 1,
 
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
