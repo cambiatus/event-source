@@ -14,3 +14,7 @@ exports.getSymbolFromAsset = function (assetString) {
     return `${Number(decimalCases.length).toString()},${symbolName}`
   }
 }
+
+exports.getPrecisionFromSymbol = function (symbolString) {
+  return symbolString.split(',')[0]
+}

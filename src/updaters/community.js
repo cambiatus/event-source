@@ -1,5 +1,9 @@
 const { logError } = require('../logging')
-const { getSymbolFromAsset, parseToken } = require('../eos_helper')
+const {
+  getSymbolFromAsset,
+  getPrecisionFromSymbol,
+  parseToken
+} = require('../eos_helper')
 
 function createCommunity (db, payload, blockInfo) {
   console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
@@ -14,6 +18,8 @@ function createCommunity (db, payload, blockInfo) {
     description: payload.data.description,
     inviter_reward: parseToken(payload.data.inviter_reward)[0],
     invited_reward: parseToken(payload.data.invited_reward)[0],
+
+    precision: getPrecisionFromSymbol(symbol),
 
     has_objectives: payload.data.has_objectives === 1,
     has_shop: payload.data.has_shop === 1,
