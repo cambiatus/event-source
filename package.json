@@ -1,7 +1,7 @@
 {
   "name": "event-source",
-  "version": "1.6.8",
-  "description": "Event broker for BeSpiral smart contracts",
+  "version": "1.7.1",
+  "description": "Event broker for Cambiatus smart contracts",
   "main": "src/app.js",
   "scripts": {
     "start": "standard ./src/ && node src/app.js",
@@ -15,7 +15,7 @@
     "demux": "^2.0.0",
     "demux-eos": "^2.0.0",
     "demux-postgres": "^2.0.0",
-    "massive": "^5.7.7",
+    "massive": "^6.6.0",
     "pg-native": "^3.0.0"
   },
   "devDependencies": {
