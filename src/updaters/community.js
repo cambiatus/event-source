@@ -1,10 +1,10 @@
 const { logError } = require('../logging')
-const { parseToken } = require('../eos_helper')
+const { getSymbolFromAsset, parseToken } = require('../eos_helper')
 
 function createCommunity (db, payload, blockInfo) {
   console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
 
-  const [, symbol] = parseToken(payload.data.cmm_asset)
+  const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
   const communityData = {
     symbol: symbol,
@@ -57,7 +57,7 @@ function createCommunity (db, payload, blockInfo) {
 function updateCommunity (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Update community logo`, blockInfo.blockNumber)
 
-  const [, symbol] = parseToken(payload.data.cmm_asset)
+  const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
   const updateData = {
     symbol: symbol,
@@ -102,7 +102,7 @@ function netlink (db, payload, blockInfo, context) {
       }
     })
     .then(() => {
-      const [, symbol] = parseToken(payload.data.cmm_asset)
+      const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
       const networkData = {
         community_id: symbol,
@@ -149,7 +149,8 @@ function netlink (db, payload, blockInfo, context) {
 function createSale (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> New Sale`, blockInfo.blockNumber)
 
-  const [price, symbol] = parseToken(payload.data.quantity)
+  const [price] = parseToken(payload.data.quantity)
+  const symbol = getSymbolFromAsset(payload.data.quantity)
   const trackStock = payload.data.track_stock === 1
   const units = trackStock ? payload.data.units : 0
 
@@ -303,7 +304,8 @@ function transferSale (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> New Transfer Sale`, blockInfo.blockNumber)
 
   const transaction = tx => {
-    const [amount, symbol] = parseToken(payload.data.quantity)
+    const [amount] = parseToken(payload.data.quantity)
+    const symbol = getSymbolFromAsset(payload.data.quantity)
 
     const whereArg = {
       id: payload.data.sale_id,
@@ -349,7 +351,7 @@ function transferSale (db, payload, blockInfo, context) {
 function newObjective (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> New Objective`, blockInfo.blockNumber)
 
-  const [, symbol] = parseToken(payload.data.cmm_asset)
+  const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
   // Add to objective table
   const objectiveData = {
@@ -590,7 +592,7 @@ function verifyClaim (db, payload, blockInfo, context) {
                     if (!action.is_completed && action.usages > 0) {
                       tx.actions.update(action.id, {
                         usages_left: action.usages_left - 1,
-                        is_completed: action.usages_left - 1 !== 0
+                        is_completed: action.usages_left - 1 === 0 ? 0 : 1
                       })
                     }
                   }
