@@ -1,11 +1,11 @@
-exports.parseToken = function (tokenString) {
+function parseToken (tokenString) {
   const [amountString] = tokenString.split(' ')
   const amount = parseFloat(amountString)
-  const symbol = this.getSymbolFromAsset(tokenString)
+  const symbol = getSymbolFromAsset(tokenString)
   return [amount, symbol]
 }
 
-exports.getSymbolFromAsset = function (assetString) {
+function getSymbolFromAsset (assetString) {
   const [amountString, symbolName] = assetString.split(' ')
   const [, decimalCases] = amountString.split('.')
 
@@ -16,6 +16,12 @@ exports.getSymbolFromAsset = function (assetString) {
   }
 }
 
-exports.getPrecisionFromSymbol = function (symbolString) {
+function getPrecisionFromSymbol (symbolString) {
   return symbolString.split(',')[0]
+}
+
+module.exports = {
+  parseToken,
+  getSymbolFromAsset,
+  getPrecisionFromSymbol
 }
