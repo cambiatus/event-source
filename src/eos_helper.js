@@ -1,6 +1,7 @@
 exports.parseToken = function (tokenString) {
-  const [amountString, symbol] = tokenString.split(' ')
+  const [amountString] = tokenString.split(' ')
   const amount = parseFloat(amountString)
+  const symbol = this.getSymbolFromAsset(tokenString)
   return [amount, symbol]
 }
 

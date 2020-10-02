@@ -1,11 +1,10 @@
 const { logError } = require('../logging')
-const { parseToken } = require('../eos_helper')
+const { parseToken, getSymbolFromAsset } = require('../eos_helper')
 
 function createToken (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Create Token`)
 
-  const [, symbol] = parseToken(payload.data.max_supply)
-
+  const symbol = getSymbolFromAsset(payload.data.max_supply)
   const updateData = {
     symbol: symbol,
     issuer: payload.data.issuer,
