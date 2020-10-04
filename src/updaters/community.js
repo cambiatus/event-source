@@ -311,6 +311,7 @@ function transferSale (db, payload, blockInfo, context) {
 
   const transaction = tx => {
     const [amount] = parseToken(payload.data.quantity)
+    const symbol = getSymbolFromAsset(payload.data.quantity)
 
     const whereArg = {
       id: payload.data.sale_id,
@@ -337,6 +338,7 @@ function transferSale (db, payload, blockInfo, context) {
         to_id: payload.data.to,
         amount: amount,
         units: payload.data.units,
+        community_id: symbol,
         created_block: blockInfo.blockNumber,
         created_tx: payload.transactionId,
         created_at: blockInfo.timestamp,

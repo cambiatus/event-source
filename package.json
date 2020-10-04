@@ -1,6 +1,6 @@
 {
   "name": "event-source",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "Event broker for Cambiatus smart contracts",
   "main": "src/app.js",
   "scripts": {
