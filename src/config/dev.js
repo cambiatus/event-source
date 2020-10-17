@@ -2,19 +2,19 @@ console.log('Loaded Dev configs')
 module.exports = {
   blockchain: {
     contract: {
-      token: 'bes.token',
-      community: 'bes.cmm'
+      token: 'cambiatus.tk',
+      community: 'cambiatus.cm'
     },
     initialBlock: 1,
     // initialBlock: 3580
-    url: 'https://eosio.cambiatus.io'
+    url: 'http://localhost:8888'
   },
   db: {
-    user: 'lucca',
+    user: 'postgres',
     password: '',
     host: 'localhost',
     port: 5432,
-    database: 'bespiral_dev',
+    database: 'cambiatus_dev',
     schema: 'public'
   },
   http: {
