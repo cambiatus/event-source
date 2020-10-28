@@ -27,3 +27,12 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 ```
+
+## Build and running
+
+```sh
+yarn
+
+# Make sure you ran the migration from the `backend` repo to initialize the tables
+yarn start
+```
