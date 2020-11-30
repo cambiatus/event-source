@@ -436,7 +436,10 @@ function upsertAction (db, payload, blockInfo, context) {
       created_block: blockInfo.blockNumber,
       created_tx: payload.transactionId,
       created_at: blockInfo.timestamp,
-      created_eos_account: payload.authorization[0].actor
+      created_eos_account: payload.authorization[0].actor,
+      has_proof_photo: payload.data.has_proof_photo === 1,
+      has_proof_code: payload.data.has_proof_code === 1,
+      photo_proof_instructions: payload.data.photo_proof_instructions, 
     }
 
     if (payload.data.action_id > 0) {
@@ -536,7 +539,9 @@ function claimAction (db, payload, blockInfo, context) {
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
-    created_at: blockInfo.timestamp
+    created_at: blockInfo.timestamp,
+    proof_photo: payload.data.proof_photo, 
+    proof_code: payload.data.proof_code,
   }
 
   db.claims
