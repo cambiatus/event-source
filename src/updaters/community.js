@@ -577,14 +577,16 @@ function verifyClaim (db, payload, blockInfo, context) {
             .count({ claim_id: claim.id, is_verified: true })
             .then(positiveVotes => {
               const positive = Number(positiveVotes)
+              console.log(`Cambiatus >>> Claim Verification: Positive votes: ${positiveVotes}`)
               // Count negative votes
               tx.checks
                 .count({ claim_id: claim.id, is_verified: false })
                 .then(negativeVotes => {
                   const negative = Number(negativeVotes)
+                  console.log(`Cambiatus >>> Claim Verification: Negative votes: ${negativeVotes}`)
                   let status = 'pending'
 
-                  if (positive + negative >= action.verifications) {
+                  if ((positive + negative) >= action.verifications) {
                     if (positive > negative) {
                       status = 'approved'
                     } else {
@@ -593,13 +595,14 @@ function verifyClaim (db, payload, blockInfo, context) {
                   }
 
                   tx.claims.update(claim.id, { status: status })
+                  console.log(`Cambiatus >>> Claim Verification: Status Updated to: ${status}`)
 
                   if (status !== 'pending') {
                     if (!action.is_completed && action.usages > 0) {
                       tx.actions.update(action.id, {
                         usages_left: action.usages_left - 1,
-                        is_completed: action.usages_left - 1 === 0 ? 0 : 1
-                      })
+                        is_completed: (action.usages_left - 1) === 0 ? 0 : 1
+                      }).catch(e => logError('Setting action as completed failed', e))
                     }
                   }
                 })
