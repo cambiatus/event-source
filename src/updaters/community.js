@@ -177,7 +177,7 @@ function createSale (db, payload, blockInfo, context) {
   }
 
   // Insert sale on database
-  db.sales
+  db.products
     .insert(data)
     .catch(e => logError('Something went wrong while creating a new sale', e))
 }
@@ -190,7 +190,7 @@ function updateSale (db, payload, blockInfo, context) {
     is_deleted: false
   }
 
-  db.sales
+  db.products
     .findOne(whereArg)
     .then(sale => {
       if (sale == null) {
@@ -211,7 +211,7 @@ function updateSale (db, payload, blockInfo, context) {
         units: units
       }
 
-      db.sales
+      db.products
         .update(whereArg, updateData)
         .catch(e =>
           logError(
@@ -237,7 +237,7 @@ function deleteSale (db, payload, blockInfo, context) {
     deleted_at: blockInfo.timestamp
   }
 
-  db.sales
+  db.products
     .update(
       {
         id: payload.data.sale_id,
@@ -258,7 +258,7 @@ function reactSale (db, payload, blockInfo, context) {
 
   const transaction = tx => {
     // Find sale
-    tx.sales
+    tx.products
       .findOne({
         id: payload.data.sale_id,
         is_deleted: false
@@ -269,7 +269,7 @@ function reactSale (db, payload, blockInfo, context) {
         }
 
         const whereArg = {
-          sale_id: sale.id,
+          product_id: sale.id,
           account_id: payload.data.from
         }
 
@@ -277,7 +277,7 @@ function reactSale (db, payload, blockInfo, context) {
         tx.sale_ratings.count(whereArg).then(total => {
           if (total === '0') {
             const data = {
-              sale_id: sale.id,
+              product_id: sale.id,
               account_id: payload.data.from,
               rating: payload.data.type,
               created_block: blockInfo.blockNumber,
@@ -319,7 +319,7 @@ function transferSale (db, payload, blockInfo, context) {
     }
 
     // Find sale
-    return tx.sales.findOne(whereArg).then(sale => {
+    return tx.products.findOne(whereArg).then(sale => {
       if (sale === null) {
         throw new Error('No sale data available')
       }
@@ -329,11 +329,11 @@ function transferSale (db, payload, blockInfo, context) {
         units: sale.units - parseInt(payload.data.units)
       }
 
-      tx.sales.update(whereArg, updateData)
+      tx.products.update(whereArg, updateData)
 
-      // Insert new sale transfer history
+      // Insert new order
       const insertData = {
-        sale_id: sale.id,
+        product_id: sale.id,
         from_id: payload.data.from,
         to_id: payload.data.to,
         amount: amount,
@@ -345,7 +345,7 @@ function transferSale (db, payload, blockInfo, context) {
         created_eos_account: payload.authorization[0].actor
       }
 
-      tx.sale_history.insert(insertData)
+      tx.orders.insert(insertData)
     })
   }
 
