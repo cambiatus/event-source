@@ -439,7 +439,7 @@ function upsertAction (db, payload, blockInfo, context) {
       created_eos_account: payload.authorization[0].actor,
       has_proof_photo: payload.data.has_proof_photo === 1,
       has_proof_code: payload.data.has_proof_code === 1,
-      photo_proof_instructions: payload.data.photo_proof_instructions, 
+      photo_proof_instructions: payload.data.photo_proof_instructions
     }
 
     if (payload.data.action_id > 0) {
@@ -540,8 +540,8 @@ function claimAction (db, payload, blockInfo, context) {
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
     created_at: blockInfo.timestamp,
-    proof_photo: payload.data.proof_photo, 
-    proof_code: payload.data.proof_code,
+    proof_photo: payload.data.proof_photo,
+    proof_code: payload.data.proof_code
   }
 
   db.claims
@@ -567,6 +567,8 @@ function verifyClaim (db, payload, blockInfo, context) {
     return tx.checks.insert(checkData).then(check => {
       // Find the checks claim
       tx.claims.findOne(check.claim_id).then(claim => {
+        console.log(`Cambiatus >>> Claim Verification: starting updating claims with id #${check.claim_id}`)
+
         if (claim === null) {
           throw new Error('claim not available')
         }
@@ -582,14 +584,16 @@ function verifyClaim (db, payload, blockInfo, context) {
             .count({ claim_id: claim.id, is_verified: true })
             .then(positiveVotes => {
               const positive = Number(positiveVotes)
+              console.log(`Cambiatus >>> Claim Verification: Positive votes: ${positiveVotes}`)
               // Count negative votes
               tx.checks
                 .count({ claim_id: claim.id, is_verified: false })
                 .then(negativeVotes => {
                   const negative = Number(negativeVotes)
+                  console.log(`Cambiatus >>> Claim Verification: Negative votes: ${negativeVotes}`)
                   let status = 'pending'
 
-                  if (positive + negative >= action.verifications) {
+                  if ((positive + negative) >= action.verifications) {
                     if (positive > negative) {
                       status = 'approved'
                     } else {
@@ -598,13 +602,14 @@ function verifyClaim (db, payload, blockInfo, context) {
                   }
 
                   tx.claims.update(claim.id, { status: status })
+                  console.log(`Cambiatus >>> Claim Verification: Status Updated to: ${status}`)
 
                   if (status !== 'pending') {
                     if (!action.is_completed && action.usages > 0) {
                       tx.actions.update(action.id, {
                         usages_left: action.usages_left - 1,
-                        is_completed: action.usages_left - 1 === 0 ? 0 : 1
-                      })
+                        is_completed: (action.usages_left - 1) === 0 ? 0 : 1
+                      }).catch(e => logError('Setting action as completed failed', e))
                     }
                   }
                 })
