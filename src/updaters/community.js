@@ -591,9 +591,11 @@ function verifyClaim (db, payload, blockInfo, context) {
                 .then(negativeVotes => {
                   const negative = Number(negativeVotes)
                   console.log(`Cambiatus >>> Claim Verification: Negative votes: ${negativeVotes}`)
-                  let status = 'pending'
 
-                  if ((positive + negative) >= action.verifications) {
+                  const majority = (action.verifications >> 1) + (action.verifications & 1)
+
+                  let status = 'pending'
+                  if (positiveVotes >= majority || negativeVotes >= majority) {
                     if (positive > negative) {
                       status = 'approved'
                     } else {
