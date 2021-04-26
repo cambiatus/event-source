@@ -35,7 +35,7 @@ function createCommunity (db, payload, blockInfo) {
     has_shop: payload.data.has_shop === 1,
     has_kyc: payload.data.has_kyc === 1,
 
-    auto_invite: payload.data.auto_invite,
+    auto_invite: payload.data.auto_invite === 1,
     subdomain: payload.data.subdomain,
 
     created_block: blockInfo.blockNumber,
@@ -98,7 +98,7 @@ function updateCommunity (db, payload, blockInfo, context) {
     has_objectives: payload.data.has_objectives === 1,
     has_shop: payload.data.has_shop === 1,
     has_kyc: payload.data.has_kyc === 1,
-    auto_invite: payload.data.auto_invite,
+    auto_invite: payload.data.auto_invite === 1,
     subdomain: payload.data.subdomain
   }
 
