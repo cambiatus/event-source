@@ -80,7 +80,7 @@ function updateCommunity (db, payload, blockInfo, context) {
   const transaction = async tx => {
     // Upsert new domain existing subdomain
     const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
-    const subdomain = (() => {
+    const subdomain = await (async () => {
       if (subdomains.length === 0) {
         return tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
       } else {
@@ -102,7 +102,7 @@ function updateCommunity (db, payload, blockInfo, context) {
       has_shop: payload.data.has_shop === 1,
       has_kyc: payload.data.has_kyc === 1,
       auto_invite: payload.data.auto_invite === 1,
-      subdomain: subdomain.id
+      subdomain_id: subdomain.id
     }
 
     // Find the community
