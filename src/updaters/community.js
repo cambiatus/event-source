@@ -13,7 +13,7 @@ function createCommunity (db, payload, blockInfo) {
   // Find existing subdomain
   db.subdomains.find({ name: payload.data.subdomain })
     .then(s => {
-      if (s == null) {
+      if (s.length === 0) {
         db.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
       } else {
         db.subdomains.update(s, { name: payload.data.subdomain, updated_at: new Date() })
@@ -81,7 +81,7 @@ function updateCommunity (db, payload, blockInfo, context) {
   // Find existing subdomain
   db.subdomains.find({ name: payload.data.subdomain })
     .then(s => {
-      if (s == null) {
+      if (s.length === 0) {
         db.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
       } else {
         db.subdomains.update(s, { name: payload.data.subdomain, updated_at: new Date() })
