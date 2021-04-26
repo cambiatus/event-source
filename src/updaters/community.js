@@ -112,7 +112,7 @@ function updateCommunity (db, payload, blockInfo, context) {
         logError('Something went wrong while updating community logo', e)
       )
 
-    tx.subdomains.destroy(oldCommunity.subdomain.id)
+    tx.subdomains.destroy(oldCommunity.subdomain_id)
   }
   db.withTransaction(transaction).catch(err => logError('Something wrong while updating community data', err))
 }
