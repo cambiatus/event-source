@@ -78,7 +78,7 @@ function updateCommunity (db, payload, blockInfo, context) {
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
   // Check if we can free up the old community subdomain
-  const oldCommunity = db.communities.findOne({ symbol: symbol })
+  const oldSubdomainId = db.communities.findOne({ symbol: symbol }).subdomain_id
 
   const transaction = async tx => {
     // Upsert new domain existing subdomain
@@ -114,7 +114,7 @@ function updateCommunity (db, payload, blockInfo, context) {
   }
   db.withTransaction(transaction).catch(err => logError('Something wrong while updating community data', err))
 
-  db.subdomains.destroy(oldCommunity.subdomain_id)
+  db.subdomains.destroy(oldSubdomainId)
 }
 
 function netlink (db, payload, blockInfo, context) {
