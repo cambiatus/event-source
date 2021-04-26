@@ -10,7 +10,15 @@ function createCommunity (db, payload, blockInfo) {
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
-  db.subdomains.save({ name: payload.data.subdomain })
+  // Find existing subdomain
+  db.subdomains.find({ name: payload.data.subdomain })
+    .then(s => {
+      if (s == null) {
+        db.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+      } else {
+        db.subdomains.update(s, { name: payload.data.subdomain, updated_at: new Date() })
+      }
+    })
 
   const communityData = {
     symbol: symbol,
@@ -71,7 +79,14 @@ function updateCommunity (db, payload, blockInfo, context) {
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
   // Find existing subdomain
-  db.subdomains.save({ name: payload.data.subdomain })
+  db.subdomains.find({ name: payload.data.subdomain })
+    .then(s => {
+      if (s == null) {
+        db.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+      } else {
+        db.subdomains.update(s, { name: payload.data.subdomain, updated_at: new Date() })
+      }
+    })
 
   const updateData = {
     symbol: symbol,
