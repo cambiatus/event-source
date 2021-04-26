@@ -10,6 +10,8 @@ function createCommunity (db, payload, blockInfo) {
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
+  db.subdomains.save({ name: payload.data.subdomain })
+
   const communityData = {
     symbol: symbol,
     creator: payload.data.creator,
@@ -24,6 +26,9 @@ function createCommunity (db, payload, blockInfo) {
     has_objectives: payload.data.has_objectives === 1,
     has_shop: payload.data.has_shop === 1,
     has_kyc: payload.data.has_kyc === 1,
+
+    auto_invite: payload.data.auto_invite,
+    subdomain: payload.data.subdomain,
 
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
@@ -65,6 +70,9 @@ function updateCommunity (db, payload, blockInfo, context) {
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
+  // Find existing subdomain
+  db.subdomains.save({ name: payload.data.subdomain })
+
   const updateData = {
     symbol: symbol,
     logo: payload.data.logo,
@@ -73,7 +81,10 @@ function updateCommunity (db, payload, blockInfo, context) {
     inviter_reward: parseToken(payload.data.inviter_reward)[0],
     invited_reward: parseToken(payload.data.invited_reward)[0],
     has_objectives: payload.data.has_objectives === 1,
-    has_shop: payload.data.has_shop === 1
+    has_shop: payload.data.has_shop === 1,
+    has_kyc: payload.data.has_kyc === 1,
+    auto_invite: payload.data.auto_invite,
+    subdomain: payload.data.subdomain
   }
 
   // Find the community
