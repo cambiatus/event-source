@@ -10,67 +10,66 @@ function createCommunity (db, payload, blockInfo) {
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
-  // Find existing subdomain
-  db.subdomains.find({ name: payload.data.subdomain })
-    .then(s => {
-      if (s.length === 0) {
-        db.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+  const transaction = async tx => {
+    // Upsert new domain existing subdomain
+    const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
+    const subdomain = (() => {
+      if (subdomains.length === 0) {
+        return tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
       } else {
-        db.subdomains.update(s, { name: payload.data.subdomain, updated_at: new Date() })
+        return tx.subdomains.update(subdomains[0], { updated_at: new Date() })
       }
-    })
+    })()
 
-  const communityData = {
-    symbol: symbol,
-    creator: payload.data.creator,
-    logo: payload.data.logo,
-    name: payload.data.name,
-    description: payload.data.description,
-    inviter_reward: parseToken(payload.data.inviter_reward)[0],
-    invited_reward: parseToken(payload.data.invited_reward)[0],
+    const communityData = {
+      symbol: symbol,
+      creator: payload.data.creator,
+      logo: payload.data.logo,
+      name: payload.data.name,
+      description: payload.data.description,
+      inviter_reward: parseToken(payload.data.inviter_reward)[0],
+      invited_reward: parseToken(payload.data.invited_reward)[0],
+      has_objectives: payload.data.has_objectives === 1,
+      has_shop: payload.data.has_shop === 1,
+      has_kyc: payload.data.has_kyc === 1,
+      auto_invite: payload.data.auto_invite === 1,
+      subdomain: subdomain.id,
+      created_block: blockInfo.blockNumber,
+      created_tx: payload.transactionId,
+      created_eos_account: payload.authorization[0].actor,
+      created_at: blockInfo.timestamp
+    }
 
-    precision: getPrecisionFromSymbol(symbol),
+    // create community
+    tx.communities
+      .insert(communityData)
+      .then(() => {
+        const networkData = {
+          community_id: symbol,
+          account_id: payload.data.creator,
+          invited_by_id: payload.data.creator,
+          created_block: blockInfo.blockNumber,
+          created_tx: payload.transactionId,
+          created_eos_account: payload.authorization[0].actor,
+          created_at: blockInfo.timestamp
+        }
 
-    has_objectives: payload.data.has_objectives === 1,
-    has_shop: payload.data.has_shop === 1,
-    has_kyc: payload.data.has_kyc === 1,
-
-    auto_invite: payload.data.auto_invite === 1,
-    subdomain: payload.data.subdomain,
-
-    created_block: blockInfo.blockNumber,
-    created_tx: payload.transactionId,
-    created_eos_account: payload.authorization[0].actor,
-    created_at: blockInfo.timestamp
+        // invite community creator
+        tx.network
+          .insert(networkData)
+          .catch(e =>
+            logError(
+              'Something went wrong while adding community creator to network',
+              e
+            )
+          )
+      })
+      .catch(e =>
+        logError('Something went wrong while inserting a new community', e)
+      )
   }
 
-  // create community
-  db.communities
-    .insert(communityData)
-    .then(() => {
-      const networkData = {
-        community_id: symbol,
-        account_id: payload.data.creator,
-        invited_by_id: payload.data.creator,
-        created_block: blockInfo.blockNumber,
-        created_tx: payload.transactionId,
-        created_eos_account: payload.authorization[0].actor,
-        created_at: blockInfo.timestamp
-      }
-
-      // invite community creator
-      db.network
-        .insert(networkData)
-        .catch(e =>
-          logError(
-            'Something went wrong while adding community creator to network',
-            e
-          )
-        )
-    })
-    .catch(e =>
-      logError('Something went wrong while inserting a new community', e)
-    )
+  db.withTransaction(transaction).catch(err => logError('Something wrong while creating community data', err))
 }
 
 function updateCommunity (db, payload, blockInfo, context) {
@@ -78,36 +77,44 @@ function updateCommunity (db, payload, blockInfo, context) {
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
-  // Find existing subdomain
-  db.subdomains.find({ name: payload.data.subdomain })
-    .then(s => {
-      if (s.length === 0) {
-        db.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+  const transaction = async tx => {
+    // Upsert new domain existing subdomain
+    const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
+    const subdomain = (() => {
+      if (subdomains.length === 0) {
+        return tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
       } else {
-        db.subdomains.update(s, { name: payload.data.subdomain, updated_at: new Date() })
+        return tx.subdomains.update(subdomains[0], { updated_at: new Date() })
       }
-    })
+    })()
 
-  const updateData = {
-    symbol: symbol,
-    logo: payload.data.logo,
-    name: payload.data.name,
-    description: payload.data.description,
-    inviter_reward: parseToken(payload.data.inviter_reward)[0],
-    invited_reward: parseToken(payload.data.invited_reward)[0],
-    has_objectives: payload.data.has_objectives === 1,
-    has_shop: payload.data.has_shop === 1,
-    has_kyc: payload.data.has_kyc === 1,
-    auto_invite: payload.data.auto_invite === 1,
-    subdomain: payload.data.subdomain
+    // Check if we can free up the old community subdomain
+    const oldCommunity = tx.communities.findOne({ symbol: symbol })
+
+    const updateData = {
+      symbol: symbol,
+      logo: payload.data.logo,
+      name: payload.data.name,
+      description: payload.data.description,
+      inviter_reward: parseToken(payload.data.inviter_reward)[0],
+      invited_reward: parseToken(payload.data.invited_reward)[0],
+      has_objectives: payload.data.has_objectives === 1,
+      has_shop: payload.data.has_shop === 1,
+      has_kyc: payload.data.has_kyc === 1,
+      auto_invite: payload.data.auto_invite === 1,
+      subdomain: subdomain.id
+    }
+
+    // Find the community
+    tx.communities
+      .update({ symbol: symbol }, updateData)
+      .catch(e =>
+        logError('Something went wrong while updating community logo', e)
+      )
+
+    tx.subdomains.destroy(oldCommunity.subdomain.id)
   }
-
-  // Find the community
-  db.communities
-    .update({ symbol: symbol }, updateData)
-    .catch(e =>
-      logError('Something went wrong while updating community logo', e)
-    )
+  db.withTransaction(transaction).catch(err => logError('Something wrong while updating community data', err))
 }
 
 function netlink (db, payload, blockInfo, context) {
