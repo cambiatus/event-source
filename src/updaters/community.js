@@ -77,6 +77,9 @@ function updateCommunity (db, payload, blockInfo, context) {
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
+  // Check if we can free up the old community subdomain
+  const oldCommunity = db.communities.findOne({ symbol: symbol })
+
   const transaction = async tx => {
     // Upsert new domain existing subdomain
     const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
@@ -87,9 +90,6 @@ function updateCommunity (db, payload, blockInfo, context) {
         return tx.subdomains.update(subdomains[0], { updated_at: new Date() })
       }
     })()
-
-    // Check if we can free up the old community subdomain
-    const oldCommunity = tx.communities.findOne({ symbol: symbol })
 
     const updateData = {
       symbol: symbol,
@@ -111,10 +111,10 @@ function updateCommunity (db, payload, blockInfo, context) {
       .catch(e =>
         logError('Something went wrong while updating community logo', e)
       )
-
-    tx.subdomains.destroy(oldCommunity.subdomain_id)
   }
   db.withTransaction(transaction).catch(err => logError('Something wrong while updating community data', err))
+
+  db.subdomains.destroy(oldCommunity.subdomain_id)
 }
 
 function netlink (db, payload, blockInfo, context) {
