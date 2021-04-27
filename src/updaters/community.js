@@ -114,6 +114,7 @@ function updateCommunity (db, payload, blockInfo, context) {
   }
   db.withTransaction(transaction).catch(err => logError('Something wrong while updating community data', err))
 
+  db.reload()
   db.subdomains.destroy(oldSubdomainId)
 }
 
