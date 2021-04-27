@@ -72,13 +72,13 @@ function createCommunity (db, payload, blockInfo) {
   db.withTransaction(transaction).catch(err => logError('Something wrong while creating community data', err))
 }
 
-function updateCommunity (db, payload, blockInfo, context) {
+async function updateCommunity (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Update community logo`, blockInfo.blockNumber)
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
   // Check if we can free up the old community subdomain
-  const oldSubdomainId = db.communities.findOne({ symbol: symbol }).subdomain_id
+  const oldCommunity = await db.communities.findOne({ symbol: symbol })
 
   const transaction = async tx => {
     // Upsert new domain existing subdomain
@@ -112,10 +112,10 @@ function updateCommunity (db, payload, blockInfo, context) {
         logError('Something went wrong while updating community logo', e)
       )
   }
-  db.withTransaction(transaction).catch(err => logError('Something wrong while updating community data', err))
+  await db.withTransaction(transaction).catch(err => logError('Something wrong while updating community data', err))
 
-  db.reload()
-  db.subdomains.destroy(oldSubdomainId)
+  await db.reload()
+  db.subdomains.destroy(oldCommunity.subdomain_id)
 }
 
 function netlink (db, payload, blockInfo, context) {
