@@ -86,7 +86,7 @@ async function updateCommunity (db, payload, blockInfo, context) {
       if (subdomains.length === 0) {
         return tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
       } else {
-        return tx.subdomains.update(subdomains[0], { updated_at: new Date() })
+        return tx.subdomains.update(subdomains[0], { updated_at: new Date() })[0]
       }
     })()
 
