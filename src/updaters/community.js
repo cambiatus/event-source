@@ -1,7 +1,6 @@
 const { logError } = require('../logging')
 const {
   getSymbolFromAsset,
-  getPrecisionFromSymbol,
   parseToken
 } = require('../eos_helper')
 
