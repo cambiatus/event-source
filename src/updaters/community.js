@@ -86,7 +86,7 @@ async function updateCommunity (db, payload, blockInfo, context) {
       if (subdomains.length === 0) {
         return tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
       } else {
-        return tx.subdomains.update(subdomains[0], { updated_at: new Date() })[0]
+        return subdomains[0]
       }
     })()
 
@@ -110,11 +110,15 @@ async function updateCommunity (db, payload, blockInfo, context) {
       .catch(e =>
         logError('Something went wrong while updating community logo', e)
       )
-  }
-  await db.withTransaction(transaction).catch(err => logError('Something wrong while updating community data', err))
 
-  await db.reload()
-  db.subdomains.destroy(oldCommunity.subdomain_id)
+    return subdomain.id
+  }
+  const newSubdomainId = await db.withTransaction(transaction).catch(err => logError('Something wrong while updating community data', err))
+
+  if (oldCommunity.subdomain_id !== newSubdomainId) {
+    await db.reload()
+    db.subdomains.destroy(oldCommunity.subdomain_id)
+  }
 }
 
 function netlink (db, payload, blockInfo, context) {
