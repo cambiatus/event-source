@@ -32,7 +32,7 @@ function createCommunity (db, payload, blockInfo) {
       has_shop: payload.data.has_shop === 1,
       has_kyc: payload.data.has_kyc === 1,
       auto_invite: payload.data.auto_invite === 1,
-      subdomain: subdomain.id,
+      subdomain_id: subdomain.id,
       created_block: blockInfo.blockNumber,
       created_tx: payload.transactionId,
       created_eos_account: payload.authorization[0].actor,
@@ -361,12 +361,16 @@ function transferSale (db, payload, blockInfo, context) {
         throw new Error('No sale data available')
       }
 
-      // Update sale units
-      const updateData = {
-        units: sale.units - parseInt(payload.data.units)
-      }
+      if (sale.trackStock) {
+        const newUnits = sale.units - parseInt(payload.data.units)
 
-      tx.products.update(whereArg, updateData)
+        // Update sale units
+        const updateData = {
+          units: (newUnits <= 0) ? 0 : newUnits
+        }
+
+        tx.products.update(whereArg, updateData)
+      }
 
       // Insert new order
       const insertData = {
