@@ -12,11 +12,13 @@ function createCommunity (db, payload, blockInfo) {
   const transaction = async tx => {
     // Upsert new domain existing subdomain
     const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
-    const subdomain = (() => {
+    const subdomainId = await (async () => {
       if (subdomains.length === 0) {
-        return tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+        const newSubdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+        return newSubdomain.id
       } else {
-        return tx.subdomains.update(subdomains[0], { updated_at: new Date() })
+        console.log('Trying to create a new community with a subdomain, skipping')
+        return null
       }
     })()
 
@@ -32,7 +34,7 @@ function createCommunity (db, payload, blockInfo) {
       has_shop: payload.data.has_shop === 1,
       has_kyc: payload.data.has_kyc === 1,
       auto_invite: payload.data.auto_invite === 1,
-      subdomain_id: subdomain.id,
+      subdomain_id: subdomainId,
       created_block: blockInfo.blockNumber,
       created_tx: payload.transactionId,
       created_eos_account: payload.authorization[0].actor,
