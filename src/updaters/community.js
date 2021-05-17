@@ -35,6 +35,7 @@ function createCommunity (db, payload, blockInfo) {
       has_kyc: payload.data.has_kyc === 1,
       auto_invite: payload.data.auto_invite === 1,
       subdomain_id: subdomainId,
+      website: payload.data.website,
       created_block: blockInfo.blockNumber,
       created_tx: payload.transactionId,
       created_eos_account: payload.authorization[0].actor,
