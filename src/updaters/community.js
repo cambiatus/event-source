@@ -104,7 +104,8 @@ async function updateCommunity (db, payload, blockInfo, context) {
       has_shop: payload.data.has_shop === 1,
       has_kyc: payload.data.has_kyc === 1,
       auto_invite: payload.data.auto_invite === 1,
-      subdomain_id: subdomain.id
+      subdomain_id: subdomain.id,
+      website: payload.data.website
     }
 
     // Find the community
