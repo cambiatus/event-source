@@ -17,6 +17,7 @@ const {
 } = require('./updaters/community.js')
 const {
   createToken,
+  updateToken,
   transfer,
   issue,
   retire,
@@ -85,6 +86,10 @@ const updaters = [
   {
     actionType: `${config.blockchain.contract.token}::create`,
     updater: createToken
+  },
+  {
+    actionType: `${config.blockchain.contract.token}::update`,
+    updater: updateToken
   },
   {
     actionType: `${config.blockchain.contract.token}::transfer`,

@@ -18,6 +18,23 @@ function createToken (db, payload, blockInfo, context) {
     .catch(e => logError('Something went wrong creating token', e))
 }
 
+async function updateToken (db, payload, blockInfo, context) {
+  console.log('Cambiatus >>> Update Token')
+
+  const symbol = getSymbolFromAsset(payload.data.max_supply)
+
+  const updateData = {
+    max_supply: parseToken(payload.data.max_supply)[0],
+    min_balance: parseToken(payload.data.min_balance)[0]
+  }
+
+  db.communities
+    .update({ symbol: symbol }, updateData)
+    .catch(e =>
+      logError('Something went wrong while updating token', e)
+    )
+}
+
 function transfer (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> New Transfer`)
 
@@ -73,6 +90,7 @@ function setExpiry (db, payload, blockInfo, context) {}
 
 module.exports = {
   createToken,
+  updateToken,
   transfer,
   issue,
   retire,
