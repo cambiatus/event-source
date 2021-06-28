@@ -112,14 +112,14 @@ async function updateCommunity (db, payload, blockInfo, context) {
     tx.communities
       .update({ symbol: symbol }, updateData)
       .catch(e =>
-        logError('Something went wrong while updating community logo', e)
+        logError('Something went wrong while updating community', e)
       )
 
     return subdomain.id
   }
   const newSubdomainId = await db.withTransaction(transaction).catch(err => logError('Something wrong while updating community data', err))
 
-  if (oldCommunity.subdomain_id !== newSubdomainId) {
+  if (oldCommunity.subdomain_id !== Number(newSubdomainId)) {
     await db.reload()
     db.subdomains.destroy(oldCommunity.subdomain_id)
   }
