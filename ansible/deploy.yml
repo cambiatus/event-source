@@ -1,0 +1,18 @@
+---
+- hosts: eventsource
+  name: Setup ntp and configure basic security
+  become: yes
+  roles:
+    - geerlingguy.ntp
+
+- hosts: 127.0.0.1
+  become: no
+  name: Build app
+  roles:
+    - build
+
+- hosts: eventsource
+  become: yes
+  name: Install event-source app
+  roles:
+    - eventsource

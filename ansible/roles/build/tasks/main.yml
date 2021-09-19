@@ -1,0 +1,48 @@
+---
+- name: Install GPG
+  apt:
+    name: gpg
+    state: present
+- name: "Add nodejs apt key"
+  apt_key:
+    url: https://deb.nodesource.com/gpgkey/nodesource.gpg.key
+    state: present
+- name: "Add nodejs 16.x ppa for apt repo"
+  apt_repository:
+    repo: deb https://deb.nodesource.com/node_16.x focal main
+    update_cache: yes
+- name: Ensure apt-transport-https is installed
+  apt:
+    name: apt-transport-https
+
+- name: Add Yarn apt key
+  apt_key:
+    url: https://dl.yarnpkg.com/debian/pubkey.gpg
+
+- name: Add Yarn repository
+  apt_repository:
+    repo: "deb https://dl.yarnpkg.com/debian/ stable main"
+    filename: yarn
+- name: Install dependencies
+  apt:
+    pkg: "{{ packages }}"
+    state: present
+    # install_recommends: no
+    update_cache: yes
+  vars:
+    packages:
+      - libpq-dev
+      - make
+      - g++
+      - nodejs
+      - yarn
+      - rsync
+      - vim
+- name: Install app dependencies
+  yarn:
+    path: /srv/source/
+  environment:
+    NODE_ENV: prod
+    LC_ALL: en_US.UTF-8
+    LANG: en_US.UTF-8
+    LANGUAGE: en_US.UTF-8
