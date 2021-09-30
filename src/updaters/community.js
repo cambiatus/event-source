@@ -4,7 +4,7 @@ const {
   parseToken
 } = require('../eos_helper')
 
-function createCommunity (db, payload, blockInfo) {
+function createCommunity(db, payload, blockInfo) {
   console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
@@ -74,7 +74,7 @@ function createCommunity (db, payload, blockInfo) {
   db.withTransaction(transaction).catch(err => logError('Something wrong while creating community data', err))
 }
 
-async function updateCommunity (db, payload, blockInfo, context) {
+async function updateCommunity(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Update community logo`, blockInfo.blockNumber)
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
@@ -125,7 +125,7 @@ async function updateCommunity (db, payload, blockInfo, context) {
   }
 }
 
-function netlink (db, payload, blockInfo, context) {
+function netlink(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> New Netlink`, blockInfo.blockNumber)
 
   // Check if user isn't already created
@@ -193,7 +193,7 @@ function netlink (db, payload, blockInfo, context) {
     )
 }
 
-function createSale (db, payload, blockInfo, context) {
+function createSale(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> New Sale`, blockInfo.blockNumber)
 
   const [price] = parseToken(payload.data.quantity)
@@ -223,7 +223,7 @@ function createSale (db, payload, blockInfo, context) {
     .catch(e => logError('Something went wrong while creating a new sale', e))
 }
 
-function updateSale (db, payload, blockInfo, context) {
+function updateSale(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Update sale`, blockInfo.blockNumber)
 
   const whereArg = {
@@ -269,7 +269,7 @@ function updateSale (db, payload, blockInfo, context) {
     )
 }
 
-function deleteSale (db, payload, blockInfo, context) {
+function deleteSale(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Remove sale`, blockInfo.blockNumber)
 
   // Soft delete sale
@@ -294,7 +294,7 @@ function deleteSale (db, payload, blockInfo, context) {
     )
 }
 
-function reactSale (db, payload, blockInfo, context) {
+function reactSale(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Vote in a sale`, blockInfo.blockNumber)
 
   const transaction = tx => {
@@ -347,7 +347,7 @@ function reactSale (db, payload, blockInfo, context) {
   )
 }
 
-function transferSale (db, payload, blockInfo, context) {
+function transferSale(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> New Transfer Sale`, blockInfo.blockNumber)
 
   const transaction = tx => {
@@ -399,7 +399,7 @@ function transferSale (db, payload, blockInfo, context) {
   )
 }
 
-function newObjective (db, payload, blockInfo, context) {
+function newObjective(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> New Objective`, blockInfo.blockNumber)
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
@@ -420,7 +420,7 @@ function newObjective (db, payload, blockInfo, context) {
     .catch(e => logError('Something went wrong creating objective', e))
 }
 
-function updateObjective (db, payload, blockInfo, context) {
+function updateObjective(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Update Objective`, blockInfo.blockNumber)
 
   const where = { id: payload.data.objective_id }
@@ -447,7 +447,7 @@ function updateObjective (db, payload, blockInfo, context) {
     )
 }
 
-function upsertAction (db, payload, blockInfo, context) {
+function upsertAction(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Upsert Action`, blockInfo.blockNumber)
 
   const [rewardAmount] = parseToken(payload.data.reward)
@@ -542,7 +542,7 @@ function upsertAction (db, payload, blockInfo, context) {
   })
 }
 
-function verifyAction (db, payload, blockInfo, context) {
+function verifyAction(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Action verification`, blockInfo.blockNumber)
 
   // Collect the action
@@ -574,7 +574,7 @@ function verifyAction (db, payload, blockInfo, context) {
     .catch(e => logError('Something went wrong while finding an action', e))
 }
 
-function claimAction (db, payload, blockInfo, context) {
+function claimAction(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Claiming an Action`, blockInfo.blockNumber)
 
   const data = {
@@ -594,7 +594,7 @@ function claimAction (db, payload, blockInfo, context) {
     .catch(e => logError('Something went wrong while inserting a claim', e))
 }
 
-function verifyClaim (db, payload, blockInfo, context) {
+function verifyClaim(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Claim Verification`, blockInfo.blockNumber)
 
   const checkData = {
@@ -655,7 +655,7 @@ function verifyClaim (db, payload, blockInfo, context) {
                     if (!action.is_completed && action.usages > 0) {
                       tx.actions.update(action.id, {
                         usages_left: action.usages_left - 1,
-                        is_completed: (action.usages_left - 1) === 0 ? 0 : 1
+                        is_completed: (action.usages_left - 1) === 0 ? false : true
                       }).catch(e => logError('Setting action as completed failed', e))
                     }
                   }
