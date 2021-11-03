@@ -206,7 +206,7 @@ function createSale(db, payload, blockInfo, context) {
     title: payload.data.title,
     description: payload.data.description,
     price: price,
-    image: payload.data.image,
+    image: payload.data.image == "" ? null : payload.data.image,
     units: units,
     track_stock: trackStock,
     is_deleted: false,
@@ -247,7 +247,7 @@ function updateSale(db, payload, blockInfo, context) {
         title: payload.data.title,
         description: payload.data.description,
         price: price,
-        image: payload.data.image,
+        image: payload.data.image == "" ? null : payload.data.image,
         track_stock: trackStock,
         units: units
       }
