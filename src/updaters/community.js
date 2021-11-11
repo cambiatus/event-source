@@ -149,10 +149,9 @@ function netlink(db, payload, blockInfo, context) {
       }
     })
     .then(() => {
-      const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
       const networkData = {
-        community_id: symbol,
+        community_id: payload.data.community_id,
         account_id: payload.data.new_user,
         invited_by_id: payload.data.inviter,
         created_block: blockInfo.blockNumber,
