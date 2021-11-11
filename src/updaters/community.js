@@ -163,7 +163,7 @@ function netlink(db, payload, blockInfo, context) {
       // Check if user don't already belong to the community
       db.network
         .count({
-          community_id: symbol,
+          community_id: payload.data.community_id,
           account_id: payload.data.new_user
         })
         .then(networkTotal => {
