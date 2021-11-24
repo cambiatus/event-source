@@ -39,12 +39,8 @@ const updaters = [
     updater: netlink
   },
   {
-    actionType: `${config.blockchain.contract.community}::newobjective`,
-    updater: newObjective
-  },
-  {
-    actionType: `${config.blockchain.contract.community}::updobjective`,
-    updater: updateObjective
+    actionType: `${config.blockchain.contract.community}::upsertobjctv`,
+    updater: psertObjective
   },
   {
     actionType: `${config.blockchain.contract.community}::upsertaction`,

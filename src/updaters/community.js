@@ -419,34 +419,31 @@ function newObjective(db, payload, blockInfo, context) {
     .catch(e => logError('Something went wrong creating objective', e))
 }
 
-function updateObjective(db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> Update Objective`, blockInfo.blockNumber)
+function upsertObjective(db, payload, blockInfo, _context) {
+  console.log(`Cambiatus >>> Upsert Objective`, blockInfo.blockNumber)
 
-  const where = { id: payload.data.objective_id }
+  let data = {
+    community_id: symbol,
+    creator_id: payload.data.creator,
+    description: payload.data.description,
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_at: blockInfo.timestamp,
+    created_eos_account: payload.authorization[0].actor
+  }
+
+  if (payload.data.objective_id > 0) {
+    data = Object.assignd(data, { id: payload.data.objective_id })
+  }
 
   db.objectives
-    .findOne(where)
-    .then(obj => {
-      if (obj == null) {
-        throw new Error('No objective found in the database')
-      }
-
-      const updateData = {
-        description: payload.data.description
-      }
-
-      db.objectives
-        .update(where, updateData)
-        .catch(e =>
-          logError('Something went wrong while updating objective', e)
-        )
-    })
+    .save(data)
     .catch(e =>
-      logError('Something went wrong while looking for the objective', e)
+      logError('Something went wrong while updating objective', e)
     )
 }
 
-function upsertAction(db, payload, blockInfo, context) {
+function upsertAction(db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Action`, blockInfo.blockNumber)
 
   const [rewardAmount] = parseToken(payload.data.reward)
@@ -670,8 +667,7 @@ module.exports = {
   createCommunity,
   updateCommunity,
   netlink,
-  newObjective,
-  updateObjective,
+  upsertObjective,
   upsertAction,
   verifyAction,
   createSale,
