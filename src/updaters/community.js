@@ -423,7 +423,7 @@ function upsertObjective(db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Objective`, blockInfo.blockNumber)
 
   let data = {
-    community_id: symbol,
+    community_id: payload.data.community_id,
     creator_id: payload.data.creator,
     description: payload.data.description,
     created_block: blockInfo.blockNumber,
