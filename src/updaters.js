@@ -46,8 +46,8 @@ const updaters = [
     updater: upsertAction
   },
   {
-    actionType: `${config.blockchain.contract.community}::verifyaction`,
-    updater: verifyAction
+    actionType: `${config.blockchain.contract.community}::reward`,
+    updater: reward
   },
   {
     actionType: `${config.blockchain.contract.community}::createsale`,

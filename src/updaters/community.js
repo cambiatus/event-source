@@ -538,7 +538,7 @@ function upsertAction(db, payload, blockInfo, _context) {
   })
 }
 
-function verifyAction(db, payload, blockInfo, context) {
+function reward(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Action verification`, blockInfo.blockNumber)
 
   // Collect the action
@@ -669,7 +669,7 @@ module.exports = {
   netlink,
   upsertObjective,
   upsertAction,
-  verifyAction,
+  reward,
   createSale,
   updateSale,
   deleteSale,
