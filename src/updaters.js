@@ -8,8 +8,7 @@ const {
   deleteSale,
   reactSale,
   transferSale,
-  newObjective,
-  updateObjective,
+  upsertObjective,
   upsertAction,
   verifyAction,
   verifyClaim,
@@ -40,7 +39,7 @@ const updaters = [
   },
   {
     actionType: `${config.blockchain.contract.community}::upsertobjctv`,
-    updater: psertObjective
+    updater: upsertObjective
   },
   {
     actionType: `${config.blockchain.contract.community}::upsertaction`,
