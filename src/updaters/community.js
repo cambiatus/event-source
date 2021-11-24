@@ -549,23 +549,31 @@ function reward(db, payload, blockInfo, context) {
         throw new Error('action not available')
       }
 
-      const completed = a.usages_left - 1 <= 0
+      if (a.usages > 0) {
+        const completed = a.usages_left - 1 <= 0
 
-      const updateData = {
-        usages_left: a.usages_left - 1,
-        is_completed: completed
+        const updateData = {
+          usages_left: a.usages_left - 1,
+          is_completed: completed
+        }
+
+        db.actions
+          .update({ id: payload.data.action_id }, updateData)
+          .then(a => {
+            const data = {
+              action_id: a.id,
+              receiver_id: payload.data.receiver,
+              awarder_id: payload.data.awarder_id
+            }
+
+            db.rewards.insert(data)
+              .catch(e => logError('Cant insert reward data', e))
+
+          })
+          .catch(e =>
+            logError('Something went wrong while verifying an action', e)
+          )
       }
-
-      db.actions
-        .update(
-          {
-            id: payload.data.action_id
-          },
-          updateData
-        )
-        .catch(e =>
-          logError('Something went wrong while verifying an action', e)
-        )
     })
     .catch(e => logError('Something went wrong while finding an action', e))
 }
