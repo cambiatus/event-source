@@ -567,7 +567,6 @@ function reward(db, payload, blockInfo, context) {
 
       // Insert reward
       const data = {
-        id: 0,
         action_id: a.id,
         receiver_id: payload.data.receiver,
         awarder_id: payload.data.awarder,
@@ -575,7 +574,7 @@ function reward(db, payload, blockInfo, context) {
         updated_at: new Date()
       }
 
-      db.rewards.insert(data)
+      db.rewards.save(data)
         .catch(e => logError('Cant insert reward data', e))
 
     })
