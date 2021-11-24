@@ -424,7 +424,7 @@ function upsertObjective(db, payload, blockInfo, _context) {
 
   let data = {
     community_id: payload.data.community_id,
-    creator_id: payload.data.creator,
+    creator_id: payload.data.editor,
     description: payload.data.description,
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
