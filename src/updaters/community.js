@@ -539,7 +539,7 @@ function upsertAction(db, payload, blockInfo, _context) {
 }
 
 function reward(db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> Action verification`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> Action reward`, blockInfo.blockNumber)
 
   // Collect the action
   db.actions
@@ -549,6 +549,7 @@ function reward(db, payload, blockInfo, context) {
         throw new Error('action not available')
       }
 
+      // Update usages if thats the case of this automatic action
       if (a.usages > 0) {
         const completed = a.usages_left - 1 <= 0
 
@@ -559,21 +560,21 @@ function reward(db, payload, blockInfo, context) {
 
         db.actions
           .update({ id: payload.data.action_id }, updateData)
-          .then(a => {
-            const data = {
-              action_id: a.id,
-              receiver_id: payload.data.receiver,
-              awarder_id: payload.data.awarder_id
-            }
-
-            db.rewards.insert(data)
-              .catch(e => logError('Cant insert reward data', e))
-
-          })
           .catch(e =>
             logError('Something went wrong while verifying an action', e)
           )
       }
+
+      // Insert reward
+      const data = {
+        action_id: a.id,
+        receiver_id: payload.data.receiver,
+        awarder_id: payload.data.awarder_id
+      }
+
+      db.rewards.insert(data)
+        .catch(e => logError('Cant insert reward data', e))
+
     })
     .catch(e => logError('Something went wrong while finding an action', e))
 }
