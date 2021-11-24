@@ -10,7 +10,7 @@ const {
   transferSale,
   upsertObjective,
   upsertAction,
-  verifyAction,
+  reward,
   verifyClaim,
   claimAction
 } = require('./updaters/community.js')
