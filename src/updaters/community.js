@@ -582,7 +582,7 @@ function reward(db, payload, blockInfo, context) {
 }
 
 function claimAction(db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> Claiming an Action`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> Claim an Action`, blockInfo.blockNumber)
 
   const data = {
     action_id: payload.data.action_id,
