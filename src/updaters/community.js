@@ -540,7 +540,6 @@ function upsertAction(db, payload, blockInfo, _context) {
 
 function reward(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Action reward`, blockInfo.blockNumber)
-  console.log(`payload`, payload.data)
 
   // Collect the action
   db.actions
@@ -570,7 +569,7 @@ function reward(db, payload, blockInfo, context) {
       const data = {
         action_id: a.id,
         receiver_id: payload.data.receiver,
-        awarder_id: payload.data.awarder_id,
+        awarder_id: payload.data.awarder,
         inserted_at: new Date(),
         updated_at: new Date()
       }
