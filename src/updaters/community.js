@@ -567,6 +567,7 @@ function reward(db, payload, blockInfo, context) {
 
       // Insert reward
       const data = {
+        id: 0,
         action_id: a.id,
         receiver_id: payload.data.receiver,
         awarder_id: payload.data.awarder,
