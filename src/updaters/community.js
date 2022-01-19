@@ -365,6 +365,8 @@ function transferSale(db, payload, blockInfo, context) {
         throw new Error('No sale data available')
       }
 
+      console.log('value of the sale: ', sale)
+
       if (sale.trackStock) {
         const newUnits = sale.units - parseInt(payload.data.units)
 
