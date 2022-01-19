@@ -367,7 +367,7 @@ function transferSale(db, payload, blockInfo, context) {
 
       console.log('value of the sale: ', sale)
 
-      if (sale.trackStock) {
+      if (sale.track_stock) {
         const newUnits = sale.units - parseInt(payload.data.units)
 
         // Update sale units
