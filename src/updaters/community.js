@@ -365,8 +365,6 @@ function transferSale(db, payload, blockInfo, context) {
         throw new Error('No sale data available')
       }
 
-      console.log('value of the sale: ', sale)
-
       if (sale.track_stock) {
         const newUnits = sale.units - parseInt(payload.data.units)
 
@@ -374,8 +372,6 @@ function transferSale(db, payload, blockInfo, context) {
         const updateData = {
           units: (newUnits <= 0) ? 0 : newUnits
         }
-
-        console.log('Update data after buying', updateData)
 
         tx.products.update(whereArg, updateData)
       }
