@@ -239,7 +239,7 @@ function updateSale(db, payload, blockInfo, context) {
       }
 
       const [price] = parseToken(payload.data.quantity)
-      const units = sale.track_stock ? payload.data.units : 0
+      const units = payload.data.track_stock === 1 ? payload.data.units : 0
       const trackStock = payload.data.track_stock === 1
 
       // Update sale data
@@ -365,7 +365,7 @@ function transferSale(db, payload, blockInfo, context) {
         throw new Error('No sale data available')
       }
 
-      if (sale.trackStock) {
+      if (sale.track_stock) {
         const newUnits = sale.units - parseInt(payload.data.units)
 
         // Update sale units
