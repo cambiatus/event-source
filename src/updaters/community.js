@@ -252,6 +252,8 @@ function updateSale(db, payload, blockInfo, context) {
         units: units
       }
 
+      console.log('Update data is: ', updateData)
+
       db.products
         .update(whereArg, updateData)
         .catch(e =>
