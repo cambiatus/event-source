@@ -252,8 +252,6 @@ function updateSale(db, payload, blockInfo, context) {
         units: units
       }
 
-      console.log('Update data is: ', updateData)
-
       db.products
         .update(whereArg, updateData)
         .catch(e =>
@@ -374,6 +372,8 @@ function transferSale(db, payload, blockInfo, context) {
         const updateData = {
           units: (newUnits <= 0) ? 0 : newUnits
         }
+
+        console.log('Update data after buying', updateData)
 
         tx.products.update(whereArg, updateData)
       }
