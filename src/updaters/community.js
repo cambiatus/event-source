@@ -433,7 +433,7 @@ function upsertObjective(db, payload, blockInfo, _context) {
   }
 
   if (payload.data.objective_id > 0) {
-    data = Object.assignd(data, { id: payload.data.objective_id })
+    data = Object.assign(data, { id: payload.data.objective_id })
   }
 
   db.objectives
