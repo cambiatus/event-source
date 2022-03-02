@@ -149,10 +149,9 @@ function netlink(db, payload, blockInfo, context) {
       }
     })
     .then(() => {
-      const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
       const networkData = {
-        community_id: symbol,
+        community_id: payload.data.community_id,
         account_id: payload.data.new_user,
         invited_by_id: payload.data.inviter,
         created_block: blockInfo.blockNumber,
@@ -164,7 +163,7 @@ function netlink(db, payload, blockInfo, context) {
       // Check if user don't already belong to the community
       db.network
         .count({
-          community_id: symbol,
+          community_id: payload.data.community_id,
           account_id: payload.data.new_user
         })
         .then(networkTotal => {
@@ -420,34 +419,31 @@ function newObjective(db, payload, blockInfo, context) {
     .catch(e => logError('Something went wrong creating objective', e))
 }
 
-function updateObjective(db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> Update Objective`, blockInfo.blockNumber)
+function upsertObjective(db, payload, blockInfo, _context) {
+  console.log(`Cambiatus >>> Upsert Objective`, blockInfo.blockNumber)
 
-  const where = { id: payload.data.objective_id }
+  let data = {
+    community_id: payload.data.community_id,
+    creator_id: payload.data.editor,
+    description: payload.data.description,
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_at: blockInfo.timestamp,
+    created_eos_account: payload.authorization[0].actor
+  }
+
+  if (payload.data.objective_id > 0) {
+    data = Object.assign(data, { id: payload.data.objective_id })
+  }
 
   db.objectives
-    .findOne(where)
-    .then(obj => {
-      if (obj == null) {
-        throw new Error('No objective found in the database')
-      }
-
-      const updateData = {
-        description: payload.data.description
-      }
-
-      db.objectives
-        .update(where, updateData)
-        .catch(e =>
-          logError('Something went wrong while updating objective', e)
-        )
-    })
+    .save(data)
     .catch(e =>
-      logError('Something went wrong while looking for the objective', e)
+      logError('Something went wrong while updating objective', e)
     )
 }
 
-function upsertAction(db, payload, blockInfo, context) {
+function upsertAction(db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Action`, blockInfo.blockNumber)
 
   const [rewardAmount] = parseToken(payload.data.reward)
@@ -484,7 +480,8 @@ function upsertAction(db, payload, blockInfo, context) {
       created_eos_account: payload.authorization[0].actor,
       has_proof_photo: payload.data.has_proof_photo === 1,
       has_proof_code: payload.data.has_proof_code === 1,
-      photo_proof_instructions: payload.data.photo_proof_instructions
+      photo_proof_instructions: payload.data.photo_proof_instructions,
+      image: payload.data.image
     }
 
     if (payload.data.action_id > 0) {
@@ -542,8 +539,8 @@ function upsertAction(db, payload, blockInfo, context) {
   })
 }
 
-function verifyAction(db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> Action verification`, blockInfo.blockNumber)
+function reward(db, payload, blockInfo, context) {
+  console.log(`Cambiatus >>> Action reward`, blockInfo.blockNumber)
 
   // Collect the action
   db.actions
@@ -553,29 +550,40 @@ function verifyAction(db, payload, blockInfo, context) {
         throw new Error('action not available')
       }
 
-      const completed = a.usages_left - 1 <= 0
+      // Update usages if thats the case of this automatic action
+      if (a.usages > 0) {
+        const completed = a.usages_left - 1 <= 0
 
-      const updateData = {
-        usages_left: a.usages_left - 1,
-        is_completed: completed
+        const updateData = {
+          usages_left: a.usages_left - 1,
+          is_completed: completed
+        }
+
+        db.actions
+          .update({ id: payload.data.action_id }, updateData)
+          .catch(e =>
+            logError('Something went wrong while verifying an action', e)
+          )
       }
 
-      db.actions
-        .update(
-          {
-            id: payload.data.action_id
-          },
-          updateData
-        )
-        .catch(e =>
-          logError('Something went wrong while verifying an action', e)
-        )
+      // Insert reward
+      const data = {
+        action_id: a.id,
+        receiver_id: payload.data.receiver,
+        awarder_id: payload.data.awarder,
+        inserted_at: new Date(),
+        updated_at: new Date()
+      }
+
+      db.rewards.save(data)
+        .catch(e => logError('Cant insert reward data', e))
+
     })
     .catch(e => logError('Something went wrong while finding an action', e))
 }
 
 function claimAction(db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> Claiming an Action`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> Claim an Action`, blockInfo.blockNumber)
 
   const data = {
     action_id: payload.data.action_id,
@@ -671,10 +679,9 @@ module.exports = {
   createCommunity,
   updateCommunity,
   netlink,
-  newObjective,
-  updateObjective,
+  upsertObjective,
   upsertAction,
-  verifyAction,
+  reward,
   createSale,
   updateSale,
   deleteSale,

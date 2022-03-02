@@ -8,10 +8,9 @@ const {
   deleteSale,
   reactSale,
   transferSale,
-  newObjective,
-  updateObjective,
+  upsertObjective,
   upsertAction,
-  verifyAction,
+  reward,
   verifyClaim,
   claimAction
 } = require('./updaters/community.js')
@@ -39,20 +38,16 @@ const updaters = [
     updater: netlink
   },
   {
-    actionType: `${config.blockchain.contract.community}::newobjective`,
-    updater: newObjective
-  },
-  {
-    actionType: `${config.blockchain.contract.community}::updobjective`,
-    updater: updateObjective
+    actionType: `${config.blockchain.contract.community}::upsertobjctv`,
+    updater: upsertObjective
   },
   {
     actionType: `${config.blockchain.contract.community}::upsertaction`,
     updater: upsertAction
   },
   {
-    actionType: `${config.blockchain.contract.community}::verifyaction`,
-    updater: verifyAction
+    actionType: `${config.blockchain.contract.community}::reward`,
+    updater: reward
   },
   {
     actionType: `${config.blockchain.contract.community}::createsale`,
