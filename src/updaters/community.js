@@ -700,7 +700,7 @@ async function upsertRole(db, payload, blockInfo, _context) {
 async function assignRole(db, payload, blockInfo, _context) {
   console.log('Cambiatus >>> Assign Role', blockInfo.blockNumber)
 
-  const inserts = await payload.data.roles.map(async (roleName) => {
+  const inserts = payload.data.roles.map((roleName) => {
     const foundNetwork = await db.network.findOne({ community_id: payload.data.community_id, account_id: payload.data.member })
     if (foundNetwork == null)
       throw new Error('Network not found. Might have a database sync error')
@@ -720,9 +720,9 @@ async function assignRole(db, payload, blockInfo, _context) {
       inserted_at: new Date(),
       updated_at: new Date()
     }
-
-    console.log('here is the assignedRoleData', assignedRoleData)
   })
+
+  console.log('here is the assignedRoleData', inserts)
 
   // Delete all member current roles
   // TODO
