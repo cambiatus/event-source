@@ -210,7 +210,7 @@ function netlink(db, payload, blockInfo, context) {
                     inserted_at: new Date(),
                     updated_at: new Date()
                   }
-                  db.network_role
+                  db.network_roles
                     .insert(networkRoleData)
                     .catch(e => logError('Cant create network_role entry while netlinking', e))
                 })
