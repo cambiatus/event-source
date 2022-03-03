@@ -691,7 +691,7 @@ async function upsertRole(db, payload, blockInfo, _context) {
       roleData = Object.assign(roleData, { id: existingRole.id })
     }
 
-    await db.roles.save(Object.assign(roleData, { id: existingRole.id }))
+    await db.roles.save(roleData)
   } catch (error) {
     logError('Something went wrong while updating objective', error)
   }
