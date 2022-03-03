@@ -416,27 +416,6 @@ function transferSale(db, payload, blockInfo, context) {
   )
 }
 
-function newObjective(db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> New Objective`, blockInfo.blockNumber)
-
-  const symbol = getSymbolFromAsset(payload.data.cmm_asset)
-
-  // Add to objective table
-  const objectiveData = {
-    community_id: symbol,
-    creator_id: payload.data.creator,
-    description: payload.data.description,
-    created_block: blockInfo.blockNumber,
-    created_tx: payload.transactionId,
-    created_at: blockInfo.timestamp,
-    created_eos_account: payload.authorization[0].actor
-  }
-
-  db.objectives
-    .insert(objectiveData)
-    .catch(e => logError('Something went wrong creating objective', e))
-}
-
 function upsertObjective(db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Objective`, blockInfo.blockNumber)
 
@@ -691,6 +670,25 @@ function verifyClaim(db, payload, blockInfo, context) {
       })
     })
   }).catch(e => logError('Something went wrong while inserting a check', e))
+
+}
+
+function upsertRole(db, payload, blockInfo, _context) {
+  console.log(`Cambiatus >>> Upsert Role`, blockInfo.blockNumber)
+
+  console.log('Here is the payload', payload.data)
+  let roleData = {
+    community_id: payload.data.community_id,
+    name: payload.data.name,
+    color: payload.data.color,
+    permissions: `{"invite", "claim", "order", "sell", "transfer"}`,
+  }
+
+  console.log('Here is the roleData', roleData)
+}
+
+function assignRole(db, payload, blockInfo, _context) {
+  console.log('Cambiatus >>> Assign Role', blockInfo.blockNumber)
 }
 
 module.exports = {
@@ -706,5 +704,7 @@ module.exports = {
   reactSale,
   transferSale,
   verifyClaim,
-  claimAction
+  claimAction,
+  upsertRole,
+  assignRole
 }
