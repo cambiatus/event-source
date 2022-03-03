@@ -673,7 +673,7 @@ function verifyClaim(db, payload, blockInfo, context) {
 
 }
 
-function upsertRole(db, payload, blockInfo, _context) {
+async function upsertRole(db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Role`, blockInfo.blockNumber)
 
   console.log('Here is the payload', payload.data)
@@ -686,9 +686,15 @@ function upsertRole(db, payload, blockInfo, _context) {
   }
 
   console.log('Here is the roleData', roleData)
+
+  try {
+    await db.roles.save(roleData)
+  } catch (error) {
+    logError('Something went wrong while updating objective', error)
+  }
 }
 
-function assignRole(db, payload, blockInfo, _context) {
+async function assignRole(db, payload, blockInfo, _context) {
   console.log('Cambiatus >>> Assign Role', blockInfo.blockNumber)
 }
 
