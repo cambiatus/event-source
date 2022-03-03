@@ -705,8 +705,8 @@ async function assignRole(db, payload, blockInfo, _context) {
   if (foundNetwork == null)
     throw new Error('Network not found. Might have a database sync error')
 
-  const inserts = await payload.data.roles.reduce(async (roleName) => {
-    const results = await roleName
+  const inserts = await payload.data.roles.reduce(async (memo, roleName) => {
+    const results = await memo
 
     // Make sure the role exists
     const foundRole = await db.roles.findOne({ community_id: payload.data.community_id, name: roleName })
@@ -723,7 +723,7 @@ async function assignRole(db, payload, blockInfo, _context) {
       inserted_at: new Date(),
       updated_at: new Date()
     }]
-  })
+  }, [])
 
   console.log(inserts)
 
