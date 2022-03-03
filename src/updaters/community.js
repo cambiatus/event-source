@@ -677,11 +677,12 @@ async function upsertRole(db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Role`, blockInfo.blockNumber)
 
   console.log('Here is the payload', payload.data)
+  const permissionString = payload.data.permissions.map(permission => `"${permission}, "`)
   let roleData = {
     community_id: payload.data.community_id,
     name: payload.data.name,
     color: payload.data.color,
-    permissions: '{' + payload.data.permissions.map(letter => `", ${letter}"`) + '}'
+    permissions: '{' + permissionString.substring(0, permissionString.length - 2) + '}'
   }
 
   console.log('Here is the roleData', roleData)
