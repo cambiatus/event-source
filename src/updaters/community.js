@@ -700,8 +700,6 @@ async function upsertRole(db, payload, blockInfo, _context) {
 async function assignRole(db, payload, blockInfo, _context) {
   console.log('Cambiatus >>> Assign Role', blockInfo.blockNumber)
 
-  console.log('Showing data: ', payload.data)
-
   const inserts = await payload.data.roles.map(async (roleName) => {
     const foundNetwork = await db.network.findOne({ community_id: payload.data.community_id, account_id: payload.data.member })
     if (foundNetwork == null)
@@ -712,7 +710,7 @@ async function assignRole(db, payload, blockInfo, _context) {
       throw new Error('Role not found. Might have a database sync error')
 
     // Already exists, don't need to insert anything
-    const total = await db.network_roles.count({ network_id: foundNetwork.id, role_id: foundRole })
+    const total = await db.network_roles.count({ network_id: foundNetwork.id, role_id: foundRole.id })
     if (total !== '0') return
 
     // Return to a list of inserts
