@@ -718,20 +718,20 @@ async function assignRole(db, payload, blockInfo, _context) {
       return
 
     // Return to a list of inserts
-    return assignedRoleData = {
+    const assignedRoleData = {
       network_id: foundNetwork.id,
       role_id: foundRole,
       inserted_at: new Date(),
       updated_at: new Date()
     }
 
+    console.log('here is the assignedRoleData', assignedRoleData)
   })
 
   // Delete all member current roles
   // TODO
 
   // Insert all data
-  inserts.map(data => console.log('Here is insert ', data))
   // await inserts.map(data => await db.network_roles.insert(data))
 }
 
