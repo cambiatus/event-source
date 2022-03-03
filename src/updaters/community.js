@@ -42,6 +42,10 @@ function createCommunity(db, payload, blockInfo) {
       created_at: blockInfo.timestamp
     }
 
+    console.log('Permission: ', tx.enums.permission)
+    console.log('Permissions: ', tx.enums.permissions)
+    console.log('Enums: ', tx.enums)
+
     // create community
     tx.communities
       .insert(communityData)
@@ -49,7 +53,7 @@ function createCommunity(db, payload, blockInfo) {
         const roleData = {
           community_id: symbol,
           name: 'member',
-          permissions: ['invite', 'claim', 'order', 'sell']
+          permissions: [tx.enums.permission.invite, tx.enums.permission.claim, tx.enums.permission.order, tx.enums.permission.sell]
         }
 
         // create default role
