@@ -46,25 +46,44 @@ function createCommunity(db, payload, blockInfo) {
     tx.communities
       .insert(communityData)
       .then(() => {
-        const networkData = {
+        const roleData = {
           community_id: symbol,
-          account_id: payload.data.creator,
-          invited_by_id: payload.data.creator,
-          created_block: blockInfo.blockNumber,
-          created_tx: payload.transactionId,
-          created_eos_account: payload.authorization[0].actor,
-          created_at: blockInfo.timestamp
+          name: 'member',
+          permissions: ['invite', 'claim', 'order', 'sell']
         }
 
-        // invite community creator
-        tx.network
-          .insert(networkData)
-          .catch(e =>
-            logError(
-              'Something went wrong while adding community creator to network',
-              e
-            )
-          )
+        // create default role
+        tx.roles
+          .insert(roleData)
+          .then(role => {
+            const networkData = {
+              community_id: symbol,
+              account_id: payload.data.creator,
+              invited_by_id: payload.data.creator,
+              created_block: blockInfo.blockNumber,
+              created_tx: payload.transactionId,
+              created_eos_account: payload.authorization[0].actor,
+              created_at: blockInfo.timestamp
+            }
+
+            // invite community creator
+            tx.network
+              .insert(networkData)
+              .then(network => {
+                // insert network role
+                const networkRoleData = {
+                  network_id: network.id,
+                  role_id: role.id
+                }
+
+                tx.network_role
+                  .insert(networkRoleData)
+                  .catch(e => logError('Something went wrong while associating network and role during community creation', e))
+              })
+              .catch(e => logError('Something went wrong while adding community creator to network during community creation', e))
+          })
+          .catch(e => logError('Something went wrong while adding the default role during community creation', e))
+
       })
       .catch(e =>
         logError('Something went wrong while inserting a new community', e)
@@ -149,7 +168,6 @@ function netlink(db, payload, blockInfo, context) {
       }
     })
     .then(() => {
-
       const networkData = {
         community_id: payload.data.community_id,
         account_id: payload.data.new_user,
@@ -173,6 +191,15 @@ function netlink(db, payload, blockInfo, context) {
 
           db.network
             .insert(networkData)
+            .then(network => {
+              db.roles.find({ community_id: payload.data.community_id, name: 'member' })
+                .then(role => {
+                  db.network_role
+                    .insert({ network_id: network.id, role_id: role.id })
+                    .catch(e => logError('Cant create network_role entry while netlinking', e))
+                })
+                .catch(e => logError('Cant find the default "member" role to associate with newly netlinked user', e))
+            })
             .catch(e =>
               logError(
                 'Something went wrong while adding user to network table',
