@@ -681,8 +681,7 @@ async function upsertRole(db, payload, blockInfo, _context) {
     community_id: payload.data.community_id,
     name: payload.data.name,
     color: payload.data.color,
-    exemplo: '{"invite", "claim", "order", "sell", "transfer"}',
-    permissions: `'{${payload.data.permissions.map(letter => `"${letter}"`)}}'`
+    permissions: '{' + payload.data.permissions.map(letter => `", ${letter}"`) + '}'
   }
 
   console.log('Here is the roleData', roleData)
