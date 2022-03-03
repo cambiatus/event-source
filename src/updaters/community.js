@@ -728,7 +728,9 @@ async function assignRole(db, payload, blockInfo, _context) {
       await tx.network_roles.destroy({ network_id: foundNetwork.id })
 
       // Insert all data
-      inserts.map(tx.network_roles.insert)
+      inserts.forEach(async (data) => {
+        await tx.network_roles.insert(data)
+      });
     })
   } catch (error) {
     logError('Something went wrong while trying to delete and assign roles to an user', error)
