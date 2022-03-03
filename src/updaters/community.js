@@ -725,6 +725,10 @@ async function assignRole(db, payload, blockInfo, _context) {
     }]
   })
 
+  console.log(inserts)
+
+
+  return
   try {
     db.withTransaction(async tx => {
       // Delete all member current roles
