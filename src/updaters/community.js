@@ -80,7 +80,7 @@ function createCommunity(db, payload, blockInfo) {
                   updated_at: new Date()
                 }
 
-                tx.network_role
+                tx.network_roles
                   .insert(networkRoleData)
                   .catch(e => {
                     logError('Something went wrong while associating network and role during community creation', e)
