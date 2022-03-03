@@ -700,35 +700,40 @@ async function upsertRole(db, payload, blockInfo, _context) {
 async function assignRole(db, payload, blockInfo, _context) {
   console.log('Cambiatus >>> Assign Role', blockInfo.blockNumber)
 
-  const inserts = await payload.data.roles.map(async (roleName) => {
-    const foundNetwork = await db.network.findOne({ community_id: payload.data.community_id, account_id: payload.data.member })
-    if (foundNetwork == null)
-      throw new Error('Network not found. Might have a database sync error')
+  // Make sure user belongs to the community
+  const foundNetwork = await db.network.findOne({ community_id: payload.data.community_id, account_id: payload.data.member })
+  if (foundNetwork == null)
+    throw new Error('Network not found. Might have a database sync error')
 
+  const inserts = await payload.data.roles.reduce(async (roleName) => {
+    const results = await roleName
+
+    // Make sure the role exists
     const foundRole = await db.roles.findOne({ community_id: payload.data.community_id, name: roleName })
     if (foundRole == null)
       throw new Error('Role not found. Might have a database sync error')
 
     // Already exists, don't need to insert anything
     const total = await db.network_roles.count({ network_id: foundNetwork.id, role_id: foundRole.id })
-    if (total !== '0') return
+    if (total !== '0') return results
 
-    // Return to a list of inserts
-    const assignedRoleData = {
+    return [...results, {
       network_id: foundNetwork.id,
       role_id: foundRole.id,
       inserted_at: new Date(),
       updated_at: new Date()
-    }
+    }]
   })
 
   try {
     db.withTransaction(async tx => {
       // Delete all member current roles
-      await tx.network_roles.destroy({ network_id: foundNetwork.id, role_id: foundRole.id })
+      await tx.network_roles.destroy({ network_id: foundNetwork.id })
 
       // Insert all data
-      inserts.map(data => tx.network_roles.insert(data))
+      inserts.map(data => {
+        tx.network_roles.insert(data)
+      })
 
     })
   } catch (error) {
