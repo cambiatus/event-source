@@ -702,17 +702,20 @@ async function assignRole(db, payload, blockInfo, _context) {
 
   console.log('Showing data: ', payload.data)
 
-  const inserts = await payload.data.roles.map(async roleName => {
+  const inserts = await payload.data.roles.map(async (roleName) => {
     const foundNetwork = await db.network.findOne({ community_id: payload.data.commmunity_id, account_id: payload.data.member })
-    if (foundNetwork == null) throw new Error('Network not found. Might have a database sync error')
+    if (foundNetwork == null)
+      throw new Error('Network not found. Might have a database sync error')
 
     const foundRole = await db.roles.findOne({ commmunity_id: payload.data.community_id, name: roleName })
-    if (foundRole == null) throw new Error('Role not found. Might have a database sync error')
+    if (foundRole == null)
+      throw new Error('Role not found. Might have a database sync error')
 
     const foundNetworkRole = await db.network_roles.findOne({ network_id: foundNetwork.id, role_id: foundRole })
 
     // Already exists, don't need to insert anything
-    if (foundNetworkRole != null) return
+    if (foundNetworkRole != null)
+      return
 
     // Return to a list of inserts
     return assignedRoleData = {
@@ -728,7 +731,8 @@ async function assignRole(db, payload, blockInfo, _context) {
   // TODO
 
   // Insert all data
-  await inserts.map(data => await db.network_roles.insert(assignedRoleData))
+  inserts.map(data => console.log('Here is insert ', data))
+  // await inserts.map(data => await db.network_roles.insert(data))
 }
 
 module.exports = {
