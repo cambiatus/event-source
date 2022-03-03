@@ -676,7 +676,6 @@ function verifyClaim(db, payload, blockInfo, context) {
 async function upsertRole(db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Role`, blockInfo.blockNumber)
 
-  console.log('Here is the payload', payload.data)
   let roleData = {
     community_id: payload.data.community_id,
     name: payload.data.name,
@@ -686,10 +685,13 @@ async function upsertRole(db, payload, blockInfo, _context) {
     updated_at: new Date()
   }
 
-  console.log('Here is the roleData', roleData)
-
   try {
-    await db.roles.save(roleData)
+    const existingRole = await db.roles.findOne({ name: payload.data.name })
+    if (existingRole != null) {
+      roleData = Object.assign(roleData, { id: existingRole.id })
+    }
+
+    await db.roles.save(Object.assign(roleData, { id: existingRole.id }))
   } catch (error) {
     logError('Something went wrong while updating objective', error)
   }
