@@ -706,6 +706,7 @@ async function assignRole(db, payload, blockInfo, _context) {
     throw new Error('Network not found. Might have a database sync error')
 
   const inserts = await payload.data.roles.reduce(async (memo, roleName) => {
+    // Necessary javascript bullshit
     const results = await memo
 
     // Make sure the role exists
@@ -721,20 +722,13 @@ async function assignRole(db, payload, blockInfo, _context) {
     }]
   }, [])
 
-  console.log(inserts)
-
-
-  return
   try {
     db.withTransaction(async tx => {
       // Delete all member current roles
       await tx.network_roles.destroy({ network_id: foundNetwork.id })
 
       // Insert all data
-      inserts.map(data => {
-        tx.network_roles.insert(data)
-      })
-
+      inserts.map(tx.network_roles.insert)
     })
   } catch (error) {
     logError('Something went wrong while trying to delete and assign roles to an user', error)
