@@ -202,8 +202,12 @@ function netlink(db, payload, blockInfo, context) {
           db.network
             .insert(networkData)
             .then(network => {
-              db.roles.find({ community_id: payload.data.community_id, name: 'member' })
+              db.roles.findOne({ community_id: payload.data.community_id, name: 'member' })
                 .then(role => {
+                  if (role == null) {
+                    throw new Error('Can\'t find role')
+                  }
+
                   const networkRoleData = {
                     network_id: network.id,
                     role_id: role.id,
