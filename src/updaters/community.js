@@ -716,7 +716,7 @@ async function assignRole(db, payload, blockInfo, _context) {
     // Return to a list of inserts
     const assignedRoleData = {
       network_id: foundNetwork.id,
-      role_id: foundRole,
+      role_id: foundRole.id,
       inserted_at: new Date(),
       updated_at: new Date()
     }
