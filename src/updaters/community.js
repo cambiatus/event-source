@@ -49,7 +49,9 @@ function createCommunity(db, payload, blockInfo) {
         const roleData = {
           community_id: symbol,
           name: 'member',
-          permissions: '{"invite", "claim", "order", "sell", "transfer"}'
+          permissions: '{"invite", "claim", "order", "sell", "transfer"}',
+          inserted_at: new Date(),
+          updated_at: new Date()
         }
 
         // create default role
@@ -73,7 +75,9 @@ function createCommunity(db, payload, blockInfo) {
                 // insert network role
                 const networkRoleData = {
                   network_id: network.id,
-                  role_id: role.id
+                  role_id: role.id,
+                  inserted_at: new Date(),
+                  updated_at: new Date()
                 }
 
                 tx.network_role
@@ -200,8 +204,14 @@ function netlink(db, payload, blockInfo, context) {
             .then(network => {
               db.roles.find({ community_id: payload.data.community_id, name: 'member' })
                 .then(role => {
+                  const networkRoleData = {
+                    network_id: network.id,
+                    role_id: role.id,
+                    inserted_at: new Date(),
+                    updated_at: new Date()
+                  }
                   db.network_role
-                    .insert({ network_id: network.id, role_id: role.id })
+                    .insert(networkRoleData)
                     .catch(e => logError('Cant create network_role entry while netlinking', e))
                 })
                 .catch(e => logError('Cant find the default "member" role to associate with newly netlinked user', e))
