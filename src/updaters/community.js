@@ -713,10 +713,6 @@ async function assignRole(db, payload, blockInfo, _context) {
     if (foundRole == null)
       throw new Error('Role not found. Might have a database sync error')
 
-    // Already exists, don't need to insert anything
-    const total = await db.network_roles.count({ network_id: foundNetwork.id, role_id: foundRole.id })
-    if (total !== '0') return results
-
     return [...results, {
       network_id: foundNetwork.id,
       role_id: foundRole.id,
