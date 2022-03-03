@@ -80,28 +80,23 @@ function createCommunity(db, payload, blockInfo) {
                   .insert(networkRoleData)
                   .catch(e => {
                     logError('Something went wrong while associating network and role during community creation', e)
-                    throw new Error('Something went wrong while associating network and role during community creation')
                   })
               })
               .catch(e => {
                 logError('Something went wrong while adding community creator to network during community creation', e)
-                throw new Error('Something went wrong while adding community creator to network during community creation')
 
               })
           })
           .catch(e => {
             logError('Something went wrong while adding the default role during community creation', e)
-            throw new Error('Something went wrong while adding the default role during community creation')
           })
-
       })
       .catch(e => {
         logError('Something went wrong while inserting a new community', e)
-        throw new Error('Something went wrong while inserting a new community')
       })
   }
 
-  db.withTransaction(transaction).catch(err => logError('Something wrong while creating community data', err))
+  db.withTransaction(transaction)
 }
 
 async function updateCommunity(db, payload, blockInfo, context) {
