@@ -707,7 +707,7 @@ async function assignRole(db, payload, blockInfo, _context) {
     if (foundNetwork == null)
       throw new Error('Network not found. Might have a database sync error')
 
-    const foundRole = await db.roles.findOne({ commmunity_id: payload.data.community_id, name: roleName })
+    const foundRole = await db.roles.findOne({ community_id: payload.data.community_id, name: roleName })
     if (foundRole == null)
       throw new Error('Role not found. Might have a database sync error')
 
