@@ -723,11 +723,14 @@ async function assignRole(db, payload, blockInfo, _context) {
   })
 
   try {
-    // Delete all member current roles
-    db.network_roles.destroy({ network_id: foundNetwork.id, role_id: foundRole.id })
+    db.withTransaction(async tx => {
+      // Delete all member current roles
+      await tx.network_roles.destroy({ network_id: foundNetwork.id, role_id: foundRole.id })
 
-    // Insert all data
-    inserts.map(data => await db.network_roles.insert(data))
+      // Insert all data
+      inserts.map(data => tx.network_roles.insert(data))
+
+    })
   } catch (error) {
     logError('Something went wrong while trying to delete and assign roles to an user', error)
   }
