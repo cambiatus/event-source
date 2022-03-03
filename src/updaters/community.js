@@ -215,9 +215,7 @@ function netlink(db, payload, blockInfo, context) {
                     updated_at: new Date()
                   }
 
-                  db.network_roles
-                    .insert(networkRoleData)
-                    .catch(e => logError('Cant create network_role entry while netlinking', e))
+                  db.network_roles.insert(networkRoleData)
                 })
                 .catch(e => logError('Cant find the default "member" role to associate with newly netlinked user', e))
             })
