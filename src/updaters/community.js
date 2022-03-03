@@ -703,7 +703,7 @@ async function assignRole(db, payload, blockInfo, _context) {
   console.log('Showing data: ', payload.data)
 
   const inserts = await payload.data.roles.map(async (roleName) => {
-    const foundNetwork = await db.network.findOne({ community_id: payload.data.commmunity_id, account_id: payload.data.member })
+    const foundNetwork = await db.network.findOne({ community_id: payload.data.community_id, account_id: payload.data.member })
     if (foundNetwork == null)
       throw new Error('Network not found. Might have a database sync error')
 
