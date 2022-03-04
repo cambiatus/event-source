@@ -12,7 +12,9 @@ const {
   upsertAction,
   reward,
   verifyClaim,
-  claimAction
+  claimAction,
+  upsertRole,
+  assignRole
 } = require('./updaters/community.js')
 const {
   createToken,
@@ -76,6 +78,14 @@ const updaters = [
   {
     actionType: `${config.blockchain.contract.community}::claimaction`,
     updater: claimAction
+  },
+  {
+    actionType: `${config.blockchain.contract.community}::upsertrole`,
+    updater: upsertRole
+  },
+  {
+    actionType: `${config.blockchain.contract.community}::assignroles`,
+    updater: assignRole
   },
   // ======== Token
   {

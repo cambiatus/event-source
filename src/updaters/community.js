@@ -45,33 +45,62 @@ function createCommunity(db, payload, blockInfo) {
     // create community
     tx.communities
       .insert(communityData)
-      .then(() => {
-        const networkData = {
+      .then(_community => {
+        const roleData = {
           community_id: symbol,
-          account_id: payload.data.creator,
-          invited_by_id: payload.data.creator,
-          created_block: blockInfo.blockNumber,
-          created_tx: payload.transactionId,
-          created_eos_account: payload.authorization[0].actor,
-          created_at: blockInfo.timestamp
+          name: 'member',
+          permissions: '{"invite", "claim", "order", "sell", "transfer"}',
+          inserted_at: new Date(),
+          updated_at: new Date()
         }
 
-        // invite community creator
-        tx.network
-          .insert(networkData)
-          .catch(e =>
-            logError(
-              'Something went wrong while adding community creator to network',
-              e
-            )
-          )
+        // create default role
+        tx.roles
+          .insert(roleData)
+          .then(role => {
+            const networkData = {
+              community_id: symbol,
+              account_id: payload.data.creator,
+              invited_by_id: payload.data.creator,
+              created_block: blockInfo.blockNumber,
+              created_tx: payload.transactionId,
+              created_eos_account: payload.authorization[0].actor,
+              created_at: blockInfo.timestamp
+            }
+
+            // invite community creator
+            tx.network
+              .insert(networkData)
+              .then(network => {
+                // insert network role
+                const networkRoleData = {
+                  network_id: network.id,
+                  role_id: role.id,
+                  inserted_at: new Date(),
+                  updated_at: new Date()
+                }
+
+                tx.network_roles
+                  .insert(networkRoleData)
+                  .catch(e => {
+                    logError('Something went wrong while associating network and role during community creation', e)
+                  })
+              })
+              .catch(e => {
+                logError('Something went wrong while adding community creator to network during community creation', e)
+
+              })
+          })
+          .catch(e => {
+            logError('Something went wrong while adding the default role during community creation', e)
+          })
       })
-      .catch(e =>
+      .catch(e => {
         logError('Something went wrong while inserting a new community', e)
-      )
+      })
   }
 
-  db.withTransaction(transaction).catch(err => logError('Something wrong while creating community data', err))
+  db.withTransaction(transaction)
 }
 
 async function updateCommunity(db, payload, blockInfo, context) {
@@ -125,71 +154,60 @@ async function updateCommunity(db, payload, blockInfo, context) {
   }
 }
 
-function netlink(db, payload, blockInfo, context) {
+async function netlink(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> New Netlink`, blockInfo.blockNumber)
 
+  const countUsers = await db.users.count({ account: payload.data.new_user })
+
   // Check if user isn't already created
-  db.users
-    .count({
-      account: payload.data.new_user
-    })
-    .then(total => {
-      const profileData = {
+  if (countUsers === '0') {
+    try {
+      await db.users.insert({
         account: payload.data.new_user,
         created_block: blockInfo.blockNumber,
         created_tx: payload.transactionId,
         created_eos_account: payload.authorization[0].actor,
         created_at: blockInfo.timestamp
-      }
+      })
+    } catch (e) {
+      logError('Something went wrong while inserting user', e)
+    }
+  }
 
-      if (total === '0') {
-        db.users
-          .insert(profileData)
-          .catch(e => logError('Something went wrong while inserting user', e))
-      }
+  const countNetwork = await db.network.count({
+    community_id: payload.data.community_id,
+    account_id: payload.data.new_user
+  })
+
+  // if it contains at least one entry, finish the execution
+  if (countNetwork !== '0') return
+
+  // Try inserting network and roles
+  try {
+    const network = await db.network.insert({
+      community_id: payload.data.community_id,
+      account_id: payload.data.new_user,
+      invited_by_id: payload.data.inviter,
+      created_block: blockInfo.blockNumber,
+      created_tx: payload.transactionId,
+      created_eos_account: payload.authorization[0].actor,
+      created_at: blockInfo.timestamp
     })
-    .then(() => {
 
-      const networkData = {
-        community_id: payload.data.community_id,
-        account_id: payload.data.new_user,
-        invited_by_id: payload.data.inviter,
-        created_block: blockInfo.blockNumber,
-        created_tx: payload.transactionId,
-        created_eos_account: payload.authorization[0].actor,
-        created_at: blockInfo.timestamp
-      }
+    const role = await db.roles.findOne({ community_id: payload.data.community_id, name: 'member' })
+    if (role == null) throw new Error("Can't find role")
 
-      // Check if user don't already belong to the community
-      db.network
-        .count({
-          community_id: payload.data.community_id,
-          account_id: payload.data.new_user
-        })
-        .then(networkTotal => {
-          if (networkTotal !== '0') {
-            return
-          }
+    const networkRoleData = {
+      network_id: network.id,
+      role_id: role.id,
+      inserted_at: new Date(),
+      updated_at: new Date()
+    }
 
-          db.network
-            .insert(networkData)
-            .catch(e =>
-              logError(
-                'Something went wrong while adding user to network table',
-                e
-              )
-            )
-        })
-        .catch(e =>
-          logError(
-            'Something went wrong while trying to insert user to the network',
-            e
-          )
-        )
-    })
-    .catch(e =>
-      logError('Something went wrong while counting for existing users', e)
-    )
+    await db.network_roles.insert(networkRoleData)
+  } catch (error) {
+    logError('Something went wrong while trying to insert user and its role to the network', error)
+  }
 }
 
 function createSale(db, payload, blockInfo, context) {
@@ -396,27 +414,6 @@ function transferSale(db, payload, blockInfo, context) {
   db.withTransaction(transaction).catch(e =>
     logError('Something went wrong while transferring sale', e)
   )
-}
-
-function newObjective(db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> New Objective`, blockInfo.blockNumber)
-
-  const symbol = getSymbolFromAsset(payload.data.cmm_asset)
-
-  // Add to objective table
-  const objectiveData = {
-    community_id: symbol,
-    creator_id: payload.data.creator,
-    description: payload.data.description,
-    created_block: blockInfo.blockNumber,
-    created_tx: payload.transactionId,
-    created_at: blockInfo.timestamp,
-    created_eos_account: payload.authorization[0].actor
-  }
-
-  db.objectives
-    .insert(objectiveData)
-    .catch(e => logError('Something went wrong creating objective', e))
 }
 
 function upsertObjective(db, payload, blockInfo, _context) {
@@ -673,6 +670,71 @@ function verifyClaim(db, payload, blockInfo, context) {
       })
     })
   }).catch(e => logError('Something went wrong while inserting a check', e))
+
+}
+
+async function upsertRole(db, payload, blockInfo, _context) {
+  console.log(`Cambiatus >>> Upsert Role`, blockInfo.blockNumber)
+
+  let roleData = {
+    community_id: payload.data.community_id,
+    name: payload.data.name,
+    color: payload.data.color,
+    permissions: '{' + payload.data.permissions.map(p => `"${p}"`).join(", ") + '}',
+    inserted_at: new Date(),
+    updated_at: new Date()
+  }
+
+  try {
+    const existingRole = await db.roles.findOne({ name: payload.data.name })
+    if (existingRole != null) {
+      roleData = Object.assign(roleData, { id: existingRole.id })
+    }
+
+    await db.roles.save(roleData)
+  } catch (error) {
+    logError('Something went wrong while updating objective', error)
+  }
+}
+
+async function assignRole(db, payload, blockInfo, _context) {
+  console.log('Cambiatus >>> Assign Role', blockInfo.blockNumber)
+
+  // Make sure user belongs to the community
+  const foundNetwork = await db.network.findOne({ community_id: payload.data.community_id, account_id: payload.data.member })
+  if (foundNetwork == null)
+    throw new Error('Network not found. Might have a database sync error')
+
+  const inserts = await payload.data.roles.reduce(async (memo, roleName) => {
+    // Necessary javascript bullshit
+    const results = await memo
+
+    // Make sure the role exists
+    const foundRole = await db.roles.findOne({ community_id: payload.data.community_id, name: roleName })
+    if (foundRole == null)
+      throw new Error('Role not found. Might have a database sync error')
+
+    return [...results, {
+      network_id: foundNetwork.id,
+      role_id: foundRole.id,
+      inserted_at: new Date(),
+      updated_at: new Date()
+    }]
+  }, [])
+
+  try {
+    db.withTransaction(async tx => {
+      // Delete all member current roles
+      await tx.network_roles.destroy({ network_id: foundNetwork.id })
+
+      // Insert all data
+      inserts.forEach(async (data) => {
+        await tx.network_roles.insert(data)
+      });
+    })
+  } catch (error) {
+    logError('Something went wrong while trying to delete and assign roles to an user', error)
+  }
 }
 
 module.exports = {
@@ -688,5 +750,7 @@ module.exports = {
   reactSale,
   transferSale,
   verifyClaim,
-  claimAction
+  claimAction,
+  upsertRole,
+  assignRole
 }

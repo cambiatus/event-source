@@ -1,20 +1,21 @@
 const Sentry = require('@sentry/node')
 const config = require(`./config/${process.env.NODE_ENV || 'dev'}`)
 
-function logInit () {
+function logInit() {
   Sentry.init(config.sentry)
 }
 
-function logError (message, error) {
+function logError(message, error) {
   console.log(message)
   console.log(error)
   Sentry.configureScope(scope => {
-    scope.captureException(message)
     scope.setExtra('error', error)
+
+    Sentry.captureException(message)
   })
 }
 
-function logExit (error) {
+function logExit(error) {
   console.error('An error has occured. error is: %s and stack trace is: %s', error, error.stack)
   console.error('Process will exit now.')
   process.exit(1)
