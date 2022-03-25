@@ -45,6 +45,8 @@ function createCommunity(db, payload, blockInfo) {
     try {
       await tx.communities.insert(communityData)
 
+      console.log('✅ Community was saved')
+
       const role = await tx.roles.insert({
         community_id: symbol,
         name: 'member',
@@ -52,6 +54,8 @@ function createCommunity(db, payload, blockInfo) {
         inserted_at: new Date(),
         updated_at: new Date()
       })
+
+      console.log('✅ Role was saved')
 
       const network = await tx.network.insert({
         community_id: symbol,
@@ -63,12 +67,15 @@ function createCommunity(db, payload, blockInfo) {
         created_at: blockInfo.timestamp
       })
 
+      console.log('✅ Network was saved')
+
       await tx.network_roles.insert({
         network_id: network.id,
         role_id: role.id,
         inserted_at: new Date(),
         updated_at: new Date()
       })
+      console.log('✅ NetworkRole was saved')
     } catch (error) {
       console.error(error)
       logError('Something went wrong while inserting a new community', error)
