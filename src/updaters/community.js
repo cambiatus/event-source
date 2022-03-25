@@ -14,16 +14,15 @@ function createCommunity(db, payload, blockInfo) {
     // Upsert new domain existing subdomain
     const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
     console.log('✅ SUBDOMAINSSSSSSSSSSS ID FOUND')
-    const subdomainId = await (async () => {
-      if (subdomains.length === 0) {
-        const newSubdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
-        console.log('✅ SUBDOMAIN ID FOUND')
-        return newSubdomain.id
-      } else {
-        console.log('Trying to create a new community with a subdomain, skipping')
-        return null
-      }
-    })()
+    let subdomainId = null
+
+    if (subdomains.length === 0) {
+      const newSubdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+      console.log('✅ SUBDOMAIN ID FOUND')
+      subdomainId = newSubdomain.id
+    }
+
+
 
     console.log('✅ Subdomain was Handled')
 
