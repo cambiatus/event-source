@@ -9,44 +9,40 @@ function createCommunity(db, payload, blockInfo) {
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
-  const transaction = async tx => {
-    // Upsert new domain existing subdomain
-    const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
-    const subdomainId = await (async () => {
-      if (subdomains.length === 0) {
-        const newSubdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
-        return newSubdomain.id
-      } else {
-        console.log('Trying to create a new community with a subdomain, skipping')
-        return null
-      }
-    })()
+  const transaction = tx => {
 
-    console.log('🔴 here is the value for subdomainId', subdomainId)
+    tx.subdomains.find({ name: payload.data.subdomain })
+      .then(subdomains => {
+        if (subdomains.length === 0) {
+          return tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+        } else {
+          console.log('Trying to create a new community with a subdomain, skipping')
+          return Promise.resolve(null)
+        }
+      })
+      .then(subdomain => {
+        const communityData = {
+          symbol: symbol,
+          creator: payload.data.creator,
+          logo: payload.data.logo,
+          name: payload.data.name,
+          description: payload.data.description,
+          inviter_reward: parseToken(payload.data.inviter_reward)[0],
+          invited_reward: parseToken(payload.data.invited_reward)[0],
+          has_objectives: payload.data.has_objectives === 1,
+          has_shop: payload.data.has_shop === 1,
+          has_kyc: payload.data.has_kyc === 1,
+          auto_invite: payload.data.auto_invite === 1,
+          subdomain_id: subdomain?.id,
+          website: payload.data.website,
+          created_block: blockInfo.blockNumber,
+          created_tx: payload.transactionId,
+          created_eos_account: payload.authorization[0].actor,
+          created_at: blockInfo.timestamp
+        }
 
-    const communityData = {
-      symbol: symbol,
-      creator: payload.data.creator,
-      logo: payload.data.logo,
-      name: payload.data.name,
-      description: payload.data.description,
-      inviter_reward: parseToken(payload.data.inviter_reward)[0],
-      invited_reward: parseToken(payload.data.invited_reward)[0],
-      has_objectives: payload.data.has_objectives === 1,
-      has_shop: payload.data.has_shop === 1,
-      has_kyc: payload.data.has_kyc === 1,
-      auto_invite: payload.data.auto_invite === 1,
-      subdomain_id: subdomainId,
-      website: payload.data.website,
-      created_block: blockInfo.blockNumber,
-      created_tx: payload.transactionId,
-      created_eos_account: payload.authorization[0].actor,
-      created_at: blockInfo.timestamp
-    }
-
-    // create community
-    tx.communities
-      .insert(communityData)
+        return tx.communities.insert(communityData)
+      })
       .then(_community => {
         const roleData = {
           community_id: symbol,
@@ -56,52 +52,39 @@ function createCommunity(db, payload, blockInfo) {
           updated_at: new Date()
         }
 
-        // create default role
-        tx.roles
-          .insert(roleData)
-          .then(role => {
-            const networkData = {
-              community_id: symbol,
-              account_id: payload.data.creator,
-              invited_by_id: payload.data.creator,
-              created_block: blockInfo.blockNumber,
-              created_tx: payload.transactionId,
-              created_eos_account: payload.authorization[0].actor,
-              created_at: blockInfo.timestamp
-            }
+        return tx.roles.insert(roleData)
+      })
+      .then(role => {
+        const networkData = {
+          community_id: symbol,
+          account_id: payload.data.creator,
+          invited_by_id: payload.data.creator,
+          created_block: blockInfo.blockNumber,
+          created_tx: payload.transactionId,
+          created_eos_account: payload.authorization[0].actor,
+          created_at: blockInfo.timestamp
+        }
 
-            // invite community creator
-            tx.network
-              .insert(networkData)
-              .then(network => {
-                // insert network role
-                const networkRoleData = {
-                  network_id: network.id,
-                  role_id: role.id,
-                  inserted_at: new Date(),
-                  updated_at: new Date()
-                }
+        // invite community creator
+        return tx.network.insert(networkData)
+      })
+      .then(network => {
+        // insert network role
+        const networkRoleData = {
+          network_id: network.id,
+          role_id: role.id,
+          inserted_at: new Date(),
+          updated_at: new Date()
+        }
 
-                tx.network_roles
-                  .insert(networkRoleData)
-                  .catch(e => {
-                    logError('Something went wrong while associating network and role during community creation', e)
-                  })
-              })
-              .catch(e => {
-                logError('Something went wrong while adding community creator to network during community creation', e)
-              })
-          })
-          .catch(e => {
-            logError('Something went wrong while adding the default role during community creation', e)
-          })
+        return tx.network_roles.insert(networkRoleData)
       })
       .catch(e => {
         logError('Something went wrong while inserting a new community', e)
       })
-  }
 
-  db.withTransaction(transaction).catch(err => logError('Something wrong while creating community data', err))
+    db.withTransaction(transaction).catch(err => logError('Something wrong while creating community data', err))
+  }
 }
 
 async function updateCommunity(db, payload, blockInfo, context) {
