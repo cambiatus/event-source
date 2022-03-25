@@ -16,6 +16,7 @@ function createCommunity(db, payload, blockInfo) {
     const subdomainId = await (async () => {
       if (subdomains.length === 0) {
         const newSubdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+        console.log('✅ SUBDOMAIN ID FOUND')
         return newSubdomain.id
       } else {
         console.log('Trying to create a new community with a subdomain, skipping')
