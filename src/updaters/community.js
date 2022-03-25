@@ -676,6 +676,7 @@ function verifyClaim(db, payload, blockInfo, context) {
 
 async function upsertRole(db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Role`, blockInfo.blockNumber)
+  return
 
   let roleData = {
     community_id: payload.data.community_id,
