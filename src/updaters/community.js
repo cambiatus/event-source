@@ -10,44 +10,44 @@ function createCommunity(db, payload, blockInfo) {
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
   const transaction = async tx => {
-    console.log('✨✨✨✨✨✨✨✨✨✨')
-    // Upsert new domain existing subdomain
-    const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
-    console.log('✅ SUBDOMAINSSSSSSSSSSS ID FOUND')
-    let subdomainId = null
-
-    if (subdomains.length === 0) {
-      console.log('✅ SUBDOMAIN ID FOUND')
-      const newSubdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
-      console.log('✅ SUBDOMAIN INSERTED')
-      subdomainId = newSubdomain.id
-    }
-
-
-
-    console.log('✅ Subdomain was Handled')
-
-    const communityData = {
-      symbol: symbol,
-      creator: payload.data.creator,
-      logo: payload.data.logo,
-      name: payload.data.name,
-      description: payload.data.description,
-      inviter_reward: parseToken(payload.data.inviter_reward)[0],
-      invited_reward: parseToken(payload.data.invited_reward)[0],
-      has_objectives: payload.data.has_objectives === 1,
-      has_shop: payload.data.has_shop === 1,
-      has_kyc: payload.data.has_kyc === 1,
-      auto_invite: payload.data.auto_invite === 1,
-      subdomain_id: subdomainId,
-      website: payload.data.website,
-      created_block: blockInfo.blockNumber,
-      created_tx: payload.transactionId,
-      created_eos_account: payload.authorization[0].actor,
-      created_at: blockInfo.timestamp
-    }
-
     try {
+      console.log('✨✨✨✨✨✨✨✨✨✨')
+      // Upsert new domain existing subdomain
+      const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
+      console.log('✅ SUBDOMAINSSSSSSSSSSS ID FOUND')
+      let subdomainId = null
+
+      if (subdomains.length === 0) {
+        console.log('✅ SUBDOMAIN ID FOUND')
+        const newSubdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+        console.log('✅ SUBDOMAIN INSERTED')
+        subdomainId = newSubdomain.id
+      }
+
+
+
+      console.log('✅ Subdomain was Handled')
+
+      const communityData = {
+        symbol: symbol,
+        creator: payload.data.creator,
+        logo: payload.data.logo,
+        name: payload.data.name,
+        description: payload.data.description,
+        inviter_reward: parseToken(payload.data.inviter_reward)[0],
+        invited_reward: parseToken(payload.data.invited_reward)[0],
+        has_objectives: payload.data.has_objectives === 1,
+        has_shop: payload.data.has_shop === 1,
+        has_kyc: payload.data.has_kyc === 1,
+        auto_invite: payload.data.auto_invite === 1,
+        subdomain_id: subdomainId,
+        website: payload.data.website,
+        created_block: blockInfo.blockNumber,
+        created_tx: payload.transactionId,
+        created_eos_account: payload.authorization[0].actor,
+        created_at: blockInfo.timestamp
+      }
+
       await tx.communities.insert(communityData)
 
       console.log('✅ Community was saved')
@@ -89,7 +89,6 @@ function createCommunity(db, payload, blockInfo) {
 
   db.withTransaction(transaction).catch(err => logError('Something wrong while creating community data', err))
 }
-
 
 async function updateCommunity(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Update community logo`, blockInfo.blockNumber)
