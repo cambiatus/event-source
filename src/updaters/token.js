@@ -1,8 +1,8 @@
 const { logError } = require('../logging')
 const { parseToken, getSymbolFromAsset } = require('../eos_helper')
 
-function createToken (db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> Create Token`)
+function createToken(db, payload, blockInfo, context) {
+  console.log(`Cambiatus >>> Create Token`, blockInfo.blockNumber)
 
   const symbol = getSymbolFromAsset(payload.data.max_supply)
   const updateData = {
@@ -18,7 +18,7 @@ function createToken (db, payload, blockInfo, context) {
     .catch(e => logError('Something went wrong creating token', e))
 }
 
-async function updateToken (db, payload, blockInfo, context) {
+async function updateToken(db, payload, blockInfo, context) {
   console.log('Cambiatus >>> Update Token')
 
   const symbol = getSymbolFromAsset(payload.data.max_supply)
@@ -35,7 +35,7 @@ async function updateToken (db, payload, blockInfo, context) {
     )
 }
 
-function transfer (db, payload, blockInfo, context) {
+function transfer(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> New Transfer`)
 
   const [amount, symbol] = parseToken(payload.data.quantity)
@@ -59,7 +59,7 @@ function transfer (db, payload, blockInfo, context) {
     )
 }
 
-function issue (db, payload, blockInfo, context) {
+function issue(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> New Issue`)
 
   const [amount, symbol] = parseToken(payload.data.quantity)
@@ -84,9 +84,9 @@ function issue (db, payload, blockInfo, context) {
     )
 }
 
-function retire (db, payload, blockInfo, context) {}
+function retire(db, payload, blockInfo, context) { }
 
-function setExpiry (db, payload, blockInfo, context) {}
+function setExpiry(db, payload, blockInfo, context) { }
 
 module.exports = {
   createToken,

@@ -70,6 +70,7 @@ function createCommunity(db, payload, blockInfo) {
         updated_at: new Date()
       })
     } catch (error) {
+      console.error(error)
       logError('Something went wrong while inserting a new community', error)
     }
   }
