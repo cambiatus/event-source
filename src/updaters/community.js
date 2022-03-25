@@ -693,7 +693,7 @@ async function upsertRole(db, payload, blockInfo, _context) {
 
     await db.roles.save(roleData)
   } catch (error) {
-    logError('Something went wrong while updating objective', error)
+    logError('Something went wrong while updating role', error)
   }
 }
 
