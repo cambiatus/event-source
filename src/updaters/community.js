@@ -686,19 +686,21 @@ function upsertRole(db, payload, blockInfo, _context) {
     updated_at: new Date()
   }
 
-  try {
-    const existingRole = await db.roles.findOne({ name: payload.data.name })
-    if (existingRole != null) {
-      roleData = Object.assign(roleData, { id: existingRole.id })
-    }
+  db.roles.findOne({ name: payload.data.name })
+    .then(existingRole => {
+      if (existingRole != null) {
+        roleData = Object.assign(roleData, { id: existingRole.id })
+      }
 
-    await db.roles.save(roleData)
-  } catch (error) {
-    logError('Something went wrong while updating role', error)
-  }
+      return db.roles.save(roleData)
+    })
+    .catch(error => {
+      logError('Something went wrong while updating role', error)
+
+    })
 }
 
-function assignRole(db, payload, blockInfo, _context) {
+async function assignRole(db, payload, blockInfo, _context) {
   console.log('Cambiatus >>> Assign Role', blockInfo.blockNumber)
 
   // Make sure user belongs to the community
