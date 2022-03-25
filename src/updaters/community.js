@@ -42,50 +42,41 @@ function createCommunity(db, payload, blockInfo) {
       created_at: blockInfo.timestamp
     }
 
-    // create community
-    tx.communities
-      .insert(communityData)
-      .then(_community => {
-        const roleData = {
-          community_id: symbol,
-          name: 'member',
-          permissions: '{"invite", "claim", "order", "sell", "transfer"}',
-          inserted_at: new Date(),
-          updated_at: new Date()
-        }
+    try {
+      await tx.communities.insert(communityData)
 
-        // create default role
-        return tx.roles.insert(roleData)
+      const role = await tx.roles.insert({
+        community_id: symbol,
+        name: 'member',
+        permissions: '{"invite", "claim", "order", "sell", "transfer"}',
+        inserted_at: new Date(),
+        updated_at: new Date()
       })
-      .then(role => {
-        return tx.network.insert({
-          community_id: symbol,
-          account_id: payload.data.creator,
-          invited_by_id: payload.data.creator,
-          created_block: blockInfo.blockNumber,
-          created_tx: payload.transactionId,
-          created_eos_account: payload.authorization[0].actor,
-          created_at: blockInfo.timestamp
-        })
-      })
-      .then(network => {
-        // insert network role
-        const networkRoleData = {
-          network_id: network.id,
-          role_id: role.id,
-          inserted_at: new Date(),
-          updated_at: new Date()
-        }
 
-        return tx.network_roles.insert(networkRoleData)
+      const network = await tx.network.insert({
+        community_id: symbol,
+        account_id: payload.data.creator,
+        invited_by_id: payload.data.creator,
+        created_block: blockInfo.blockNumber,
+        created_tx: payload.transactionId,
+        created_eos_account: payload.authorization[0].actor,
+        created_at: blockInfo.timestamp
       })
-      .catch(e => {
-        logError('Something went wrong while inserting a new community', e)
+
+      await tx.network_roles.insert({
+        network_id: network.id,
+        role_id: role.id,
+        inserted_at: new Date(),
+        updated_at: new Date()
       })
+    } catch (error) {
+      logError('Something went wrong while inserting a new community', error)
+    }
   }
 
   db.withTransaction(transaction).catch(err => logError('Something wrong while creating community data', err))
 }
+
 
 async function updateCommunity(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Update community logo`, blockInfo.blockNumber)
