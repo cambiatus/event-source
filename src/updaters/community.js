@@ -674,9 +674,8 @@ function verifyClaim(db, payload, blockInfo, context) {
 
 }
 
-async function upsertRole(db, payload, blockInfo, _context) {
+function upsertRole(db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Role`, blockInfo.blockNumber)
-  return
 
   let roleData = {
     community_id: payload.data.community_id,
@@ -699,7 +698,7 @@ async function upsertRole(db, payload, blockInfo, _context) {
   }
 }
 
-async function assignRole(db, payload, blockInfo, _context) {
+function assignRole(db, payload, blockInfo, _context) {
   console.log('Cambiatus >>> Assign Role', blockInfo.blockNumber)
 
   // Make sure user belongs to the community
