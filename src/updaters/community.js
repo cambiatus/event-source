@@ -22,10 +22,11 @@ function createCommunity(db, payload, blockInfo) {
       console.log('✅ SUBDOMAIN ID FOUND')
       try {
 
-        const newSubdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+        const newSubdomain = await db.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
         subdomainId = newSubdomain.id
       } catch (error) {
         console.log('🔴 something is wrong bro, ', error)
+        return
       }
       console.log('✅ SUBDOMAIN INSERTED')
     }
