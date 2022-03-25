@@ -10,7 +10,6 @@ function createCommunity(db, payload, blockInfo) {
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
   const transaction = tx => {
-
     tx.subdomains.find({ name: payload.data.subdomain })
       .then(subdomains => {
         if (subdomains.length === 0) {
@@ -66,25 +65,25 @@ function createCommunity(db, payload, blockInfo) {
         }
 
         // invite community creator
-        return tx.network.insert(networkData)
-      })
-      .then(network => {
-        // insert network role
-        const networkRoleData = {
-          network_id: network.id,
-          role_id: role.id,
-          inserted_at: new Date(),
-          updated_at: new Date()
-        }
+        return tx.network
+          .insert(networkData)
+          .then(network => {
+            const networkRoleData = {
+              network_id: network.id,
+              role_id: role.id,
+              inserted_at: new Date(),
+              updated_at: new Date()
+            }
 
-        return tx.network_roles.insert(networkRoleData)
+            return tx.network_roles.insert(networkRoleData)
+          })
       })
       .catch(e => {
         logError('Something went wrong while inserting a new community', e)
       })
-
-    db.withTransaction(transaction).catch(err => logError('Something wrong while creating community data', err))
   }
+
+  db.withTransaction(transaction).catch(err => logError('Something wrong while creating community data', err))
 }
 
 async function updateCommunity(db, payload, blockInfo, context) {
