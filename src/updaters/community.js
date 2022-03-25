@@ -5,33 +5,24 @@ const {
 } = require('../eos_helper')
 
 function createCommunity(db, payload, blockInfo) {
-  // TODO: put back the correct log
-  // console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
-  console.log(`Cambiatus >>> Create Community`, payload.data)
+  console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
   const transaction = async tx => {
-    console.log('✨✨✨✨✨✨✨✨✨✨')
     // Upsert new domain existing subdomain
     const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
-    console.log('✅ SUBDOMAINSSSSSSSSSSS ID FOUND')
-    let subdomainId = null
-
-    if (subdomains.length === 0) {
-      console.log('✅ SUBDOMAIN ID FOUND')
-      try {
-
-        const newSubdomain = await db.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
-        subdomainId = newSubdomain.id
-      } catch (error) {
-        console.log('🔴 something is wrong bro, ', error)
-        return
+    const subdomainId = await (async () => {
+      if (subdomains.length === 0) {
+        const newSubdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+        return newSubdomain.id
+      } else {
+        console.log('Trying to create a new community with a subdomain, skipping')
+        return null
       }
-      console.log('✅ SUBDOMAIN INSERTED')
-    }
+    })()
 
-    console.log('✅ Subdomain was Handled')
+    console.log('🔴 here is the value for subdomainId', subdomainId)
 
     const communityData = {
       symbol: symbol,
@@ -53,44 +44,61 @@ function createCommunity(db, payload, blockInfo) {
       created_at: blockInfo.timestamp
     }
 
-    try {
-      await tx.communities.insert(communityData)
+    // create community
+    tx.communities
+      .insert(communityData)
+      .then(_community => {
+        const roleData = {
+          community_id: symbol,
+          name: 'member',
+          permissions: '{"invite", "claim", "order", "sell", "transfer"}',
+          inserted_at: new Date(),
+          updated_at: new Date()
+        }
 
-      console.log('✅ Community was saved')
+        // create default role
+        tx.roles
+          .insert(roleData)
+          .then(role => {
+            const networkData = {
+              community_id: symbol,
+              account_id: payload.data.creator,
+              invited_by_id: payload.data.creator,
+              created_block: blockInfo.blockNumber,
+              created_tx: payload.transactionId,
+              created_eos_account: payload.authorization[0].actor,
+              created_at: blockInfo.timestamp
+            }
 
-      const role = await tx.roles.insert({
-        community_id: symbol,
-        name: 'member',
-        permissions: '{"invite", "claim", "order", "sell", "transfer"}',
-        inserted_at: new Date(),
-        updated_at: new Date()
+            // invite community creator
+            tx.network
+              .insert(networkData)
+              .then(network => {
+                // insert network role
+                const networkRoleData = {
+                  network_id: network.id,
+                  role_id: role.id,
+                  inserted_at: new Date(),
+                  updated_at: new Date()
+                }
+
+                tx.network_roles
+                  .insert(networkRoleData)
+                  .catch(e => {
+                    logError('Something went wrong while associating network and role during community creation', e)
+                  })
+              })
+              .catch(e => {
+                logError('Something went wrong while adding community creator to network during community creation', e)
+              })
+          })
+          .catch(e => {
+            logError('Something went wrong while adding the default role during community creation', e)
+          })
       })
-
-      console.log('✅ Role was saved')
-
-      const network = await tx.network.insert({
-        community_id: symbol,
-        account_id: payload.data.creator,
-        invited_by_id: payload.data.creator,
-        created_block: blockInfo.blockNumber,
-        created_tx: payload.transactionId,
-        created_eos_account: payload.authorization[0].actor,
-        created_at: blockInfo.timestamp
+      .catch(e => {
+        logError('Something went wrong while inserting a new community', e)
       })
-
-      console.log('✅ Network was saved')
-
-      await tx.network_roles.insert({
-        network_id: network.id,
-        role_id: role.id,
-        inserted_at: new Date(),
-        updated_at: new Date()
-      })
-      console.log('✅ NetworkRole was saved')
-    } catch (error) {
-      console.error(error)
-      logError('Something went wrong while inserting a new community', error)
-    }
   }
 
   db.withTransaction(transaction).catch(err => logError('Something wrong while creating community data', err))
