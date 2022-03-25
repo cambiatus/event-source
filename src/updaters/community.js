@@ -21,15 +21,12 @@ function createCommunity(db, payload, blockInfo) {
       try {
 
         const newSubdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+        subdomainId = newSubdomain.id
       } catch (error) {
         console.log('🔴 something is wrong bro, ', error)
-
       }
       console.log('✅ SUBDOMAIN INSERTED')
-      subdomainId = newSubdomain.id
     }
-
-
 
     console.log('✅ Subdomain was Handled')
 
