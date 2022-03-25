@@ -5,7 +5,9 @@ const {
 } = require('../eos_helper')
 
 function createCommunity(db, payload, blockInfo) {
-  console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
+  // TODO: put back the correct log
+  // console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
+  console.log(`Cambiatus >>> Create Community`, payload.data)
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
