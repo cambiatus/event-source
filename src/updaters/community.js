@@ -10,6 +10,7 @@ function createCommunity(db, payload, blockInfo) {
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
   const transaction = async tx => {
+    console.log('✨✨✨✨✨✨✨✨✨✨')
     // Upsert new domain existing subdomain
     const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
     const subdomainId = await (async () => {
@@ -21,6 +22,8 @@ function createCommunity(db, payload, blockInfo) {
         return null
       }
     })()
+
+    console.log('✅ Subdomain was Handled')
 
     const communityData = {
       symbol: symbol,
