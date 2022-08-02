@@ -478,7 +478,7 @@ function upsertAction(db, payload, blockInfo, _context) {
       has_proof_photo: payload.data.has_proof_photo === 1,
       has_proof_code: payload.data.has_proof_code === 1,
       photo_proof_instructions: payload.data.photo_proof_instructions,
-      image: payload.data.image
+      image: payload.data.image === "" ? null : payload.data.image
     }
 
     if (payload.data.action_id > 0) {
@@ -590,8 +590,8 @@ function claimAction(db, payload, blockInfo, context) {
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
     created_at: blockInfo.timestamp,
-    proof_photo: payload.data.proof_photo,
-    proof_code: payload.data.proof_code
+    proof_photo: payload.data.proof_photo == "" ? null : payload.data.proof_photo,
+    proof_code: payload.data.proof_code == "" ? null : payload.data.proof_code
   }
 
   db.claims
