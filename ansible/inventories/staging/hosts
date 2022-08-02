@@ -1,0 +1,7 @@
+[eventsource]
+54.242.115.39 private_ip=172.31.44.52
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_user=ubuntu
+ansible_ssh_private_key_file=~/.ssh/new-cambiatus-prod.pem
