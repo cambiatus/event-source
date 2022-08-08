@@ -221,7 +221,7 @@ function createSale(db, payload, blockInfo, context) {
   const data = {
     community_id: symbol,
     title: payload.data.title,
-    description: payload.data.description,
+    description: payload.data.description === "" ? null : payload.data.description,
     price: price,
     image: payload.data.image == "" ? null : payload.data.image,
     units: units,
@@ -262,7 +262,7 @@ function updateSale(db, payload, blockInfo, context) {
       // Update sale data
       const updateData = {
         title: payload.data.title,
-        description: payload.data.description,
+        description: payload.data.description === "" ? null : payload.data.description,
         price: price,
         image: payload.data.image == "" ? null : payload.data.image,
         track_stock: trackStock,
