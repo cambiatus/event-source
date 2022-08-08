@@ -25,9 +25,9 @@ function createCommunity(db, payload, blockInfo) {
     const communityData = {
       symbol: symbol,
       creator: payload.data.creator,
-      logo: payload.data.logo,
+      logo: payload.data.logo === "" ? null : payload.data.logo,
       name: payload.data.name,
-      description: payload.data.description,
+      description: payload.data.description === "" ? null : payload.data.description,
       inviter_reward: parseToken(payload.data.inviter_reward)[0],
       invited_reward: parseToken(payload.data.invited_reward)[0],
       has_objectives: payload.data.has_objectives === 1,
@@ -35,7 +35,7 @@ function createCommunity(db, payload, blockInfo) {
       has_kyc: payload.data.has_kyc === 1,
       auto_invite: payload.data.auto_invite === 1,
       subdomain_id: subdomainId,
-      website: payload.data.website,
+      website: payload.data.website === "" ? null : payload.data.website,
       created_block: blockInfo.blockNumber,
       created_tx: payload.transactionId,
       created_eos_account: payload.authorization[0].actor,
@@ -124,9 +124,9 @@ async function updateCommunity(db, payload, blockInfo, context) {
 
     const updateData = {
       symbol: symbol,
-      logo: payload.data.logo,
+      logo: payload.data.logo === "" ? null : payload.data.logo,
       name: payload.data.name,
-      description: payload.data.description,
+      description: payload.data.description === "" ? null : payload.data.description,
       inviter_reward: parseToken(payload.data.inviter_reward)[0],
       invited_reward: parseToken(payload.data.invited_reward)[0],
       has_objectives: payload.data.has_objectives === 1,
@@ -134,7 +134,7 @@ async function updateCommunity(db, payload, blockInfo, context) {
       has_kyc: payload.data.has_kyc === 1,
       auto_invite: payload.data.auto_invite === 1,
       subdomain_id: subdomain.id,
-      website: payload.data.website
+      website: payload.data.website === "" ? null : payload.data.website
     }
 
     // Find the community
@@ -221,7 +221,7 @@ function createSale(db, payload, blockInfo, context) {
   const data = {
     community_id: symbol,
     title: payload.data.title,
-    description: payload.data.description,
+    description: payload.data.description === "" ? null : payload.data.description,
     price: price,
     image: payload.data.image == "" ? null : payload.data.image,
     units: units,
@@ -262,7 +262,7 @@ function updateSale(db, payload, blockInfo, context) {
       // Update sale data
       const updateData = {
         title: payload.data.title,
-        description: payload.data.description,
+        description: payload.data.description === "" ? null : payload.data.description,
         price: price,
         image: payload.data.image == "" ? null : payload.data.image,
         track_stock: trackStock,
@@ -477,8 +477,8 @@ function upsertAction(db, payload, blockInfo, _context) {
       created_eos_account: payload.authorization[0].actor,
       has_proof_photo: payload.data.has_proof_photo === 1,
       has_proof_code: payload.data.has_proof_code === 1,
-      photo_proof_instructions: payload.data.photo_proof_instructions,
-      image: payload.data.image
+      photo_proof_instructions: payload.data.photo_proof_instructions === "" ? null : payload.data.photo_proof_instructions,
+      image: payload.data.image === "" ? null : payload.data.image
     }
 
     if (payload.data.action_id > 0) {
@@ -590,8 +590,8 @@ function claimAction(db, payload, blockInfo, context) {
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
     created_at: blockInfo.timestamp,
-    proof_photo: payload.data.proof_photo,
-    proof_code: payload.data.proof_code
+    proof_photo: payload.data.proof_photo === "" ? null : payload.data.proof_photo,
+    proof_code: payload.data.proof_code === "" ? null : payload.data.proof_code
   }
 
   db.claims
