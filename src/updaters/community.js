@@ -477,7 +477,7 @@ function upsertAction(db, payload, blockInfo, _context) {
       created_eos_account: payload.authorization[0].actor,
       has_proof_photo: payload.data.has_proof_photo === 1,
       has_proof_code: payload.data.has_proof_code === 1,
-      photo_proof_instructions: payload.data.photo_proof_instructions,
+      photo_proof_instructions: payload.data.photo_proof_instructions === "" ? null : payload.data.photo_proof_instructions,
       image: payload.data.image === "" ? null : payload.data.image
     }
 
