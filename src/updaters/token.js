@@ -45,7 +45,7 @@ function transfer (db, payload, blockInfo, context) {
     to_id: payload.data.to,
     amount: amount,
     community_id: symbol,
-    memo: payload.data.memo,
+    memo: payload.data.memo === "" ? null : payload.data.memo,
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
