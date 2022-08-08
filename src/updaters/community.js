@@ -590,8 +590,8 @@ function claimAction(db, payload, blockInfo, context) {
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
     created_at: blockInfo.timestamp,
-    proof_photo: payload.data.proof_photo == "" ? null : payload.data.proof_photo,
-    proof_code: payload.data.proof_code == "" ? null : payload.data.proof_code
+    proof_photo: payload.data.proof_photo === "" ? null : payload.data.proof_photo,
+    proof_code: payload.data.proof_code === "" ? null : payload.data.proof_code
   }
 
   db.claims
