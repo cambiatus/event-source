@@ -1,0 +1,23 @@
+[Unit]
+Description=Cambiatus Event Source
+After=network.target
+
+[Service]
+Type=simple
+TimeoutSec=120
+RestartSec=5
+Restart=on-failure
+User={{ cambiatus_app_user }}
+Group={{ cambiatus_app_group }}
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier={{ cambiatus_app_name }}
+
+Environment=HOME={{ cambiatus_home_dir }}
+EnvironmentFile=/etc/default/{{ cambiatus_app_name }}
+WorkingDirectory={{ cambiatus_home_dir }}
+
+ExecStart=/usr/bin/yarn start
+
+[Install]
+WantedBy=multi-user.target
