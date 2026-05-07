@@ -4,86 +4,70 @@ const {
   parseToken
 } = require('../eos_helper')
 
-function createCommunity(db, payload, blockInfo) {
+async function createCommunity(db, payload, blockInfo) {
   console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
 
-  const transaction = tx => {
-    tx.subdomains.find({ name: payload.data.subdomain })
-      .then(subdomains => {
-        if (subdomains.length === 0) {
-          return tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
-        } else {
-          console.log('Trying to create a new community with a subdomain, skipping')
-          return Promise.resolve(null)
-        }
-      })
-      .then(subdomain => {
-        const communityData = {
-          symbol: symbol,
-          creator: payload.data.creator,
-          logo: payload.data.logo,
-          name: payload.data.name,
-          description: payload.data.description,
-          inviter_reward: parseToken(payload.data.inviter_reward)[0],
-          invited_reward: parseToken(payload.data.invited_reward)[0],
-          has_objectives: payload.data.has_objectives === 1,
-          has_shop: payload.data.has_shop === 1,
-          has_kyc: payload.data.has_kyc === 1,
-          auto_invite: payload.data.auto_invite === 1,
-          subdomain_id: subdomain?.id,
-          website: payload.data.website,
-          created_block: blockInfo.blockNumber,
-          created_tx: payload.transactionId,
-          created_eos_account: payload.authorization[0].actor,
-          created_at: blockInfo.timestamp
-        }
+  const transaction = async tx => {
+    const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
+    let subdomain
+    if (subdomains.length === 0) {
+      subdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+    } else {
+      console.log('Trying to create a new community with a subdomain, skipping')
+      subdomain = null
+    }
 
-        return tx.communities.insert(communityData)
-      })
-      .then(_community => {
-        const roleData = {
-          community_id: symbol,
-          name: 'member',
-          permissions: '{"invite", "claim", "order", "sell", "transfer"}',
-          inserted_at: new Date(),
-          updated_at: new Date()
-        }
+    const communityData = {
+      symbol: symbol,
+      creator: payload.data.creator,
+      logo: payload.data.logo || null,
+      name: payload.data.name,
+      description: payload.data.description || null,
+      inviter_reward: parseToken(payload.data.inviter_reward)[0],
+      invited_reward: parseToken(payload.data.invited_reward)[0],
+      has_objectives: payload.data.has_objectives === 1,
+      has_shop: payload.data.has_shop === 1,
+      has_kyc: payload.data.has_kyc === 1,
+      auto_invite: payload.data.auto_invite === 1,
+      subdomain_id: subdomain?.id,
+      website: payload.data.website || null,
+      created_block: blockInfo.blockNumber,
+      created_tx: payload.transactionId,
+      created_eos_account: payload.authorization[0].actor,
+      created_at: blockInfo.timestamp
+    }
 
-        return tx.roles.insert(roleData)
-      })
-      .then(role => {
-        const networkData = {
-          community_id: symbol,
-          account_id: payload.data.creator,
-          invited_by_id: payload.data.creator,
-          created_block: blockInfo.blockNumber,
-          created_tx: payload.transactionId,
-          created_eos_account: payload.authorization[0].actor,
-          created_at: blockInfo.timestamp
-        }
+    const _community = await tx.communities.insert(communityData)
 
-        // invite community creator
-        return tx.network
-          .insert(networkData)
-          .then(network => {
-            const networkRoleData = {
-              network_id: network.id,
-              role_id: role.id,
-              inserted_at: new Date(),
-              updated_at: new Date()
-            }
+    const role = await tx.roles.insert({
+      community_id: symbol,
+      name: 'member',
+      permissions: '{"invite", "claim", "order", "sell", "transfer"}',
+      inserted_at: new Date(),
+      updated_at: new Date()
+    })
 
-            return tx.network_roles.insert(networkRoleData)
-          })
-      })
-      .catch(e => {
-        logError('Something went wrong while inserting a new community', e)
-      })
+    const network = await tx.network.insert({
+      community_id: symbol,
+      account_id: payload.data.creator,
+      invited_by_id: payload.data.creator,
+      created_block: blockInfo.blockNumber,
+      created_tx: payload.transactionId,
+      created_eos_account: payload.authorization[0].actor,
+      created_at: blockInfo.timestamp
+    })
+
+    return tx.network_roles.insert({
+      network_id: network.id,
+      role_id: role.id,
+      inserted_at: new Date(),
+      updated_at: new Date()
+    })
   }
 
-  db.withTransaction(transaction).catch(err => logError('Something wrong while creating community data', err))
+  return db.withTransaction(transaction).catch(err => logError('Something wrong while creating community data', err))
 }
 
 async function updateCommunity(db, payload, blockInfo, context) {
@@ -107,9 +91,9 @@ async function updateCommunity(db, payload, blockInfo, context) {
 
     const updateData = {
       symbol: symbol,
-      logo: payload.data.logo,
+      logo: payload.data.logo || null,
       name: payload.data.name,
-      description: payload.data.description,
+      description: payload.data.description || null,
       inviter_reward: parseToken(payload.data.inviter_reward)[0],
       invited_reward: parseToken(payload.data.invited_reward)[0],
       has_objectives: payload.data.has_objectives === 1,
@@ -117,7 +101,7 @@ async function updateCommunity(db, payload, blockInfo, context) {
       has_kyc: payload.data.has_kyc === 1,
       auto_invite: payload.data.auto_invite === 1,
       subdomain_id: subdomain.id,
-      website: payload.data.website
+      website: payload.data.website || null
     }
 
     // Find the community
@@ -204,9 +188,9 @@ function createSale(db, payload, blockInfo, context) {
   const data = {
     community_id: symbol,
     title: payload.data.title,
-    description: payload.data.description,
+    description: payload.data.description || null,
     price: price,
-    image: payload.data.image == "" ? null : payload.data.image,
+    image: payload.data.image || null,
     units: units,
     track_stock: trackStock,
     is_deleted: false,
@@ -245,9 +229,9 @@ function updateSale(db, payload, blockInfo, context) {
       // Update sale data
       const updateData = {
         title: payload.data.title,
-        description: payload.data.description,
+        description: payload.data.description || null,
         price: price,
-        image: payload.data.image == "" ? null : payload.data.image,
+        image: payload.data.image || null,
         track_stock: trackStock,
         units: units
       }
@@ -294,56 +278,33 @@ function deleteSale(db, payload, blockInfo, context) {
     )
 }
 
-function reactSale(db, payload, blockInfo, context) {
+async function reactSale(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Vote in a sale`, blockInfo.blockNumber)
 
-  const transaction = tx => {
-    // Find sale
-    tx.products
-      .findOne({
-        id: payload.data.sale_id,
-        is_deleted: false
+  const transaction = async tx => {
+    const sale = await tx.products.findOne({ id: payload.data.sale_id, is_deleted: false })
+    if (sale === null) throw new Error('No sale data available')
+
+    const whereArg = { product_id: sale.id, account_id: payload.data.from }
+    const total = await tx.sale_ratings.count(whereArg)
+
+    if (total === '0') {
+      return tx.sale_ratings.insert({
+        product_id: sale.id,
+        account_id: payload.data.from,
+        rating: payload.data.type,
+        created_block: blockInfo.blockNumber,
+        created_tx: payload.transactionId,
+        created_eos_account: payload.authorization[0].actor,
+        created_at: blockInfo.timestamp
       })
-      .then(sale => {
-        if (sale === null) {
-          throw new Error('No sale data available')
-        }
-
-        const whereArg = {
-          product_id: sale.id,
-          account_id: payload.data.from
-        }
-
-        // Check if sale was previously voted
-        tx.sale_ratings.count(whereArg).then(total => {
-          if (total === '0') {
-            const data = {
-              product_id: sale.id,
-              account_id: payload.data.from,
-              rating: payload.data.type,
-              created_block: blockInfo.blockNumber,
-              created_tx: payload.transactionId,
-              created_eos_account: payload.authorization[0].actor,
-              created_at: blockInfo.timestamp
-            }
-
-            tx.sale_ratings.insert(data)
-          } else {
-            const updateData = {
-              rating: payload.data.type
-            }
-
-            tx.sale_ratings.update(whereArg, updateData)
-          }
-        })
-      })
+    } else {
+      return tx.sale_ratings.update(whereArg, { rating: payload.data.type })
+    }
   }
 
-  db.withTransaction(transaction).catch(e =>
-    logError(
-      'Something went wrong while reacting to a sale, make sure that sale is not deleted',
-      e
-    )
+  return db.withTransaction(transaction).catch(e =>
+    logError('Something went wrong while reacting to a sale, make sure that sale is not deleted', e)
   )
 }
 
@@ -423,7 +384,7 @@ function upsertObjective(db, payload, blockInfo, _context) {
     )
 }
 
-function upsertAction(db, payload, blockInfo, _context) {
+async function upsertAction(db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Action`, blockInfo.blockNumber)
 
   const [rewardAmount] = parseToken(payload.data.reward)
@@ -434,132 +395,88 @@ function upsertAction(db, payload, blockInfo, _context) {
       ? payload.data.validators_str.split('-')
       : []
 
-  db.objectives.findOne({ id: payload.data.objective_id }).then(o => {
-    if (o === null) {
-      console.error(
-        `Objective with the id ${payload.data.objective_id} does not exist`
-      )
-      return
-    }
+  const o = await db.objectives.findOne({ id: payload.data.objective_id })
+  if (o === null) {
+    console.error(`Objective with the id ${payload.data.objective_id} does not exist`)
+    return
+  }
 
-    let data = {
-      objective_id: payload.data.objective_id,
-      creator_id: payload.data.creator,
-      description: payload.data.description,
-      reward: rewardAmount,
-      verifier_reward: verifierAmount,
-      is_completed: false,
-      usages: payload.data.usages,
-      usages_left: payload.data.usages,
-      verifications: payload.data.verifications,
-      verification_type: payload.data.verification_type,
-      deadline: payload.data.deadline > 0 ? deadlineDateTime : null,
-      created_block: blockInfo.blockNumber,
-      created_tx: payload.transactionId,
-      created_at: blockInfo.timestamp,
-      created_eos_account: payload.authorization[0].actor,
-      has_proof_photo: payload.data.has_proof_photo === 1,
-      has_proof_code: payload.data.has_proof_code === 1,
-      photo_proof_instructions: payload.data.photo_proof_instructions,
-      image: payload.data.image
-    }
+  let data = {
+    objective_id: payload.data.objective_id,
+    creator_id: payload.data.creator,
+    description: payload.data.description,
+    reward: rewardAmount,
+    verifier_reward: verifierAmount,
+    is_completed: false,
+    usages: payload.data.usages,
+    usages_left: payload.data.usages,
+    verifications: payload.data.verifications,
+    verification_type: payload.data.verification_type,
+    deadline: payload.data.deadline > 0 ? deadlineDateTime : null,
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_at: blockInfo.timestamp,
+    created_eos_account: payload.authorization[0].actor,
+    has_proof_photo: payload.data.has_proof_photo === 1,
+    has_proof_code: payload.data.has_proof_code === 1,
+    photo_proof_instructions: payload.data.photo_proof_instructions || null,
+    image: payload.data.image || null
+  }
+
+  if (payload.data.action_id > 0) {
+    data = Object.assign(data, {
+      id: payload.data.action_id,
+      usages_left: payload.data.usages_left,
+      is_completed: payload.data.is_completed === 1
+    })
+  }
+
+  return db.withTransaction(async tx => {
+    const savedAction = await tx.actions.save(data)
 
     if (payload.data.action_id > 0) {
-      // Update
-      data = Object.assign(data, {
-        id: payload.data.action_id,
-        usages_left: payload.data.usages_left,
-        is_completed: payload.data.is_completed === 1
-      })
+      await tx.validators.destroy({ action_id: payload.data.action_id })
     }
 
-    db.withTransaction(tx => {
-      return tx.actions
-        .save(data)
-        .then(savedAction => {
-          // In case of a update delete all older validators and add new ones
-          if (payload.data.action_id > 0) {
-            db.validators
-              .destroy({ action_id: payload.data.action_id })
-              .catch(e =>
-                logError(
-                  'Something went wrong while deleting old validators',
-                  e
-                )
-              )
-          }
-
-          validators.map(validator => {
-            const validatorData = {
-              action_id: savedAction.id,
-              validator_id: validator,
-              created_block: blockInfo.blockNumber,
-              created_tx: payload.transactionId,
-              created_eos_account: payload.authorization[0].actor,
-              created_at: blockInfo.timestamp
-            }
-
-            tx.validators
-              .insert(validatorData)
-              .catch(e =>
-                logError(
-                  'Something went wrong while adding a validator to the list',
-                  e
-                )
-              )
-          })
-        })
-        .catch(e => logError('Error while creating an action', e))
-    }).catch(e =>
-      logError(
-        'Something went wrong while executing transaction to create an action',
-        e
-      )
-    )
-  })
+    await Promise.all(validators.map(validator => {
+      return tx.validators.insert({
+        action_id: savedAction.id,
+        validator_id: validator,
+        created_block: blockInfo.blockNumber,
+        created_tx: payload.transactionId,
+        created_eos_account: payload.authorization[0].actor,
+        created_at: blockInfo.timestamp
+      })
+    }))
+  }).catch(e => logError('Something went wrong while executing transaction to create an action', e))
 }
 
-function reward(db, payload, blockInfo, context) {
+async function reward(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Action reward`, blockInfo.blockNumber)
 
-  // Collect the action
-  db.actions
-    .findOne(payload.data.action_id)
-    .then(a => {
-      if (a === null) {
-        throw new Error('action not available')
-      }
+  const a = await db.actions.findOne(payload.data.action_id)
+    .catch(e => { logError('Something went wrong while finding an action', e) })
+  if (a === null || a == null) throw new Error('action not available')
 
-      // Update usages if thats the case of this automatic action
-      if (a.usages > 0) {
-        const completed = a.usages_left - 1 <= 0
+  const rewardInsert = db.rewards.save({
+    action_id: a.id,
+    receiver_id: payload.data.receiver,
+    awarder_id: payload.data.awarder,
+    inserted_at: new Date(),
+    updated_at: new Date()
+  }).catch(e => logError('Cant insert reward data', e))
 
-        const updateData = {
-          usages_left: a.usages_left - 1,
-          is_completed: completed
-        }
+  if (a.usages > 0) {
+    const completed = a.usages_left - 1 <= 0
+    const actionUpdate = db.actions.update({ id: payload.data.action_id }, {
+      usages_left: a.usages_left - 1,
+      is_completed: completed
+    }).catch(e => logError('Something went wrong while verifying an action', e))
 
-        db.actions
-          .update({ id: payload.data.action_id }, updateData)
-          .catch(e =>
-            logError('Something went wrong while verifying an action', e)
-          )
-      }
+    return Promise.all([rewardInsert, actionUpdate])
+  }
 
-      // Insert reward
-      const data = {
-        action_id: a.id,
-        receiver_id: payload.data.receiver,
-        awarder_id: payload.data.awarder,
-        inserted_at: new Date(),
-        updated_at: new Date()
-      }
-
-      db.rewards.save(data)
-        .catch(e => logError('Cant insert reward data', e))
-
-    })
-    .catch(e => logError('Something went wrong while finding an action', e))
+  return rewardInsert
 }
 
 function claimAction(db, payload, blockInfo, context) {
@@ -573,8 +490,8 @@ function claimAction(db, payload, blockInfo, context) {
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
     created_at: blockInfo.timestamp,
-    proof_photo: payload.data.proof_photo,
-    proof_code: payload.data.proof_code
+    proof_photo: payload.data.proof_photo || null,
+    proof_code: payload.data.proof_code || null
   }
 
   db.claims
@@ -582,7 +499,7 @@ function claimAction(db, payload, blockInfo, context) {
     .catch(e => logError('Something went wrong while inserting a claim', e))
 }
 
-function verifyClaim(db, payload, blockInfo, context) {
+async function verifyClaim(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Claim Verification`, blockInfo.blockNumber)
 
   const checkData = {
@@ -595,70 +512,47 @@ function verifyClaim(db, payload, blockInfo, context) {
     created_at: blockInfo.timestamp
   }
 
-  db.withTransaction(tx => {
-    // Save the Check
-    return tx.checks.insert(checkData).then(check => {
-      // Find the checks claim
-      tx.claims.findOne(check.claim_id).then(claim => {
-        console.log(`Cambiatus >>> Claim Verification: starting updating claims with id #${check.claim_id}`)
+  return db.withTransaction(async tx => {
+    const check = await tx.checks.insert(checkData)
 
-        if (claim === null) {
-          throw new Error('claim not available')
-        }
+    const claim = await tx.claims.findOne(check.claim_id)
+    console.log(`Cambiatus >>> Claim Verification: starting updating claims with id #${check.claim_id}`)
+    if (claim === null) throw new Error('claim not available')
 
-        // Find the claims action
-        tx.actions.findOne(claim.action_id).then(action => {
-          if (action === null) {
-            throw new Error('action not available')
-          }
+    const action = await tx.actions.findOne(claim.action_id)
+    if (action === null) throw new Error('action not available')
 
-          // Count positive votes
-          tx.checks
-            .count({ claim_id: claim.id, is_verified: true })
-            .then(positiveVotes => {
-              const positive = Number(positiveVotes)
-              console.log(`Cambiatus >>> Claim Verification: Positive votes: ${positiveVotes}`)
-              // Count negative votes
-              tx.checks
-                .count({ claim_id: claim.id, is_verified: false })
-                .then(negativeVotes => {
-                  const negative = Number(negativeVotes)
-                  console.log(`Cambiatus >>> Claim Verification: Negative votes: ${negativeVotes}`)
+    const [positiveVotes, negativeVotes] = await Promise.all([
+      tx.checks.count({ claim_id: claim.id, is_verified: true }),
+      tx.checks.count({ claim_id: claim.id, is_verified: false })
+    ])
 
-                  const majority = (action.verifications >> 1) + (action.verifications & 1)
+    const positive = Number(positiveVotes)
+    const negative = Number(negativeVotes)
+    console.log(`Cambiatus >>> Claim Verification: Positive votes: ${positiveVotes}`)
+    console.log(`Cambiatus >>> Claim Verification: Negative votes: ${negativeVotes}`)
 
-                  let status = 'pending'
-                  if (positiveVotes >= majority || negativeVotes >= majority) {
-                    if (positive > negative) {
-                      status = 'approved'
-                    } else {
-                      status = 'rejected'
-                    }
-                  }
+    const majority = (action.verifications >> 1) + (action.verifications & 1)
 
-                  tx.claims.update(claim.id, { status: status })
-                  console.log(`Cambiatus >>> Claim Verification: Status Updated to: ${status}`)
+    let status = 'pending'
+    if (positive >= majority || negative >= majority) {
+      status = positive > negative ? 'approved' : 'rejected'
+    }
 
-                  if (status !== 'pending') {
-                    if (!action.is_completed && action.usages > 0) {
-                      tx.actions.update(action.id, {
-                        usages_left: action.usages_left - 1,
-                        is_completed: (action.usages_left - 1) === 0
-                      }).catch(e => logError('Setting action as completed failed', e))
-                    }
-                  }
-                })
-            })
-        })
-      })
-    })
+    await tx.claims.update(claim.id, { status: status })
+    console.log(`Cambiatus >>> Claim Verification: Status Updated to: ${status}`)
+
+    if (status !== 'pending' && !action.is_completed && action.usages > 0) {
+      await tx.actions.update(action.id, {
+        usages_left: action.usages_left - 1,
+        is_completed: (action.usages_left - 1) === 0
+      }).catch(e => logError('Setting action as completed failed', e))
+    }
   }).catch(e => logError('Something went wrong while inserting a check', e))
-
 }
 
 function upsertRole(db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Role`, blockInfo.blockNumber)
-  return
 
   let roleData = {
     community_id: payload.data.community_id,
@@ -686,41 +580,31 @@ function upsertRole(db, payload, blockInfo, _context) {
 async function assignRole(db, payload, blockInfo, _context) {
   console.log('Cambiatus >>> Assign Role', blockInfo.blockNumber)
 
-  // Make sure user belongs to the community
-  const foundNetwork = await db.network.findOne({ community_id: payload.data.community_id, account_id: payload.data.member })
+  const [foundNetwork, foundRoles] = await Promise.all([
+    db.network.findOne({ community_id: payload.data.community_id, account_id: payload.data.member }),
+    db.roles.find({ community_id: payload.data.community_id, name: payload.data.roles })
+  ])
+
   if (foundNetwork == null)
     throw new Error('Network not found. Might have a database sync error')
 
-  const inserts = await payload.data.roles.reduce(async (memo, roleName) => {
-    // Necessary javascript bullshit
-    const results = await memo
-
-    // Make sure the role exists
-    const foundRole = await db.roles.findOne({ community_id: payload.data.community_id, name: roleName })
+  const rolesByName = Object.fromEntries(foundRoles.map(r => [r.name, r]))
+  const inserts = payload.data.roles.map(roleName => {
+    const foundRole = rolesByName[roleName]
     if (foundRole == null)
       throw new Error('Role not found. Might have a database sync error')
-
-    return [...results, {
+    return {
       network_id: foundNetwork.id,
       role_id: foundRole.id,
       inserted_at: new Date(),
       updated_at: new Date()
-    }]
-  }, [])
+    }
+  })
 
-  try {
-    db.withTransaction(async tx => {
-      // Delete all member current roles
-      await tx.network_roles.destroy({ network_id: foundNetwork.id })
-
-      // Insert all data
-      inserts.forEach(async (data) => {
-        await tx.network_roles.insert(data)
-      });
-    })
-  } catch (error) {
-    logError('Something went wrong while trying to delete and assign roles to an user', error)
-  }
+  return db.withTransaction(async tx => {
+    await tx.network_roles.destroy({ network_id: foundNetwork.id })
+    await Promise.all(inserts.map(data => tx.network_roles.insert(data)))
+  }).catch(error => logError('Something went wrong while trying to delete and assign roles to an user', error))
 }
 
 module.exports = {
