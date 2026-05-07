@@ -49,9 +49,14 @@ class GetActionsReader extends AbstractActionReader {
   async getHeadBlockNumber () {
     const now = Date.now()
     if (now - this._headRefreshedAt > HEAD_REFRESH_MS) {
-      const info = await this._post('/v1/chain/get_info', {})
-      this.headBlockNumber = info.head_block_num
-      this._headRefreshedAt = now
+      try {
+        const info = await this._post('/v1/chain/get_info', {})
+        this.headBlockNumber = info.head_block_num
+        this._headRefreshedAt = now
+      } catch (e) {
+        console.error('GetActionsReader: failed to fetch head block number:', e.message)
+        // return cached value; will retry next time cache expires
+      }
     }
     return this.headBlockNumber
   }
@@ -186,9 +191,14 @@ class GetActionsReader extends AbstractActionReader {
       return this._returnSyntheticBlock(targetBlock)
     }
 
-    // Buffer empty — try to load more
+    // Buffer empty — try to load more (catch transient network errors so we don't crash)
     if (this.pendingActions.length === 0) {
-      await this._loadNextBatch()
+      try {
+        await this._loadNextBatch()
+      } catch (e) {
+        console.error('GetActionsReader: network error fetching actions, will retry next poll:', e.message)
+        return [this.currentBlockData || this._syntheticBlock(this.currentBlockNumber), false, false]
+      }
     }
 
     if (this.pendingActions.length > 0) {
