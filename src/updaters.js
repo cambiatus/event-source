@@ -3,10 +3,6 @@ const {
   createCommunity,
   updateCommunity,
   netlink,
-  createSale,
-  updateSale,
-  deleteSale,
-  reactSale,
   transferSale,
   upsertObjective,
   upsertAction,
@@ -22,7 +18,8 @@ const {
   transfer,
   issue,
   retire,
-  setExpiry
+  setExpiry,
+  initacc
 } = require('./updaters/token.js')
 
 const updaters = [
@@ -50,22 +47,6 @@ const updaters = [
   {
     actionType: `${config.blockchain.contract.community}::reward`,
     updater: reward
-  },
-  {
-    actionType: `${config.blockchain.contract.community}::createsale`,
-    updater: createSale
-  },
-  {
-    actionType: `${config.blockchain.contract.community}::updatesale`,
-    updater: updateSale
-  },
-  {
-    actionType: `${config.blockchain.contract.community}::deletesale`,
-    updater: deleteSale
-  },
-  {
-    actionType: `${config.blockchain.contract.community}::reactsale`,
-    updater: reactSale
   },
   {
     actionType: `${config.blockchain.contract.community}::transfersale`,
@@ -111,6 +92,10 @@ const updaters = [
   {
     actionType: `${config.blockchain.contract.token}::setexpiry`,
     updater: setExpiry
+  },
+  {
+    actionType: `${config.blockchain.contract.token}::initacc`,
+    updater: initacc
   }
 ]
 

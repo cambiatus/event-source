@@ -84,9 +84,36 @@ function issue(db, payload, blockInfo, context) {
     )
 }
 
-function retire(db, payload, blockInfo, context) { }
+function retire(db, payload, blockInfo, context) {
+  console.log(`Cambiatus >>> Retire tokens for ${payload.data.currency} (${payload.data.user_type})`)
+}
 
-function setExpiry(db, payload, blockInfo, context) { }
+async function setExpiry(db, payload, blockInfo, context) {
+  console.log(`Cambiatus >>> Set Expiry`, blockInfo.blockNumber)
+
+  const currency = payload.data.currency
+  const updateData = {
+    expiration_period: payload.data.natural_expiration_period,
+    renovation_amount: parseToken(payload.data.renovation_amount)[0]
+  }
+
+  const existing = await db.expiry_options.findOne({ community_id: currency })
+    .catch(e => { logError('Error looking up expiry_options', e) })
+
+  if (existing) {
+    db.expiry_options
+      .update({ community_id: currency }, updateData)
+      .catch(e => logError('Something went wrong while updating expiry options', e))
+  } else {
+    db.expiry_options
+      .insert({ community_id: currency, ...updateData })
+      .catch(e => logError('Something went wrong while inserting expiry options', e))
+  }
+}
+
+function initacc(db, payload, blockInfo, context) {
+  console.log(`Cambiatus >>> Init Account ${payload.data.account} for ${payload.data.currency}`)
+}
 
 module.exports = {
   createToken,
@@ -94,5 +121,6 @@ module.exports = {
   transfer,
   issue,
   retire,
-  setExpiry
+  setExpiry,
+  initacc
 }
