@@ -126,7 +126,7 @@ async function updateCommunity(db, payload, blockInfo, context) {
       symbol: symbol,
       logo: payload.data.logo === "" ? null : payload.data.logo,
       name: payload.data.name,
-      description: payload.data.description === "" ? null : payload.data.description,
+      description: payload.data.description === "" ? "Cambiatus Community" : payload.data.description,
       inviter_reward: parseToken(payload.data.inviter_reward)[0],
       invited_reward: parseToken(payload.data.invited_reward)[0],
       has_objectives: payload.data.has_objectives === 1,
@@ -208,160 +208,6 @@ async function netlink(db, payload, blockInfo, context) {
   } catch (error) {
     logError('Something went wrong while trying to insert user and its role to the network', error)
   }
-}
-
-function createSale(db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> New Sale`, blockInfo.blockNumber)
-
-  const [price] = parseToken(payload.data.quantity)
-  const symbol = getSymbolFromAsset(payload.data.quantity)
-  const trackStock = payload.data.track_stock === 1
-  const units = trackStock ? payload.data.units : 0
-
-  const data = {
-    community_id: symbol,
-    title: payload.data.title,
-    description: payload.data.description === "" ? null : payload.data.description,
-    price: price,
-    image: payload.data.image == "" ? null : payload.data.image,
-    units: units,
-    track_stock: trackStock,
-    is_deleted: false,
-    creator_id: payload.data.from,
-    created_block: blockInfo.blockNumber,
-    created_tx: payload.transactionId,
-    created_eos_account: payload.authorization[0].actor,
-    created_at: blockInfo.timestamp
-  }
-
-  // Insert sale on database
-  db.products
-    .insert(data)
-    .catch(e => logError('Something went wrong while creating a new sale', e))
-}
-
-function updateSale(db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> Update sale`, blockInfo.blockNumber)
-
-  const whereArg = {
-    id: payload.data.sale_id,
-    is_deleted: false
-  }
-
-  db.products
-    .findOne(whereArg)
-    .then(sale => {
-      if (sale == null) {
-        throw new Error('No sale data available')
-      }
-
-      const [price] = parseToken(payload.data.quantity)
-      const units = payload.data.track_stock === 1 ? payload.data.units : 0
-      const trackStock = payload.data.track_stock === 1
-
-      // Update sale data
-      const updateData = {
-        title: payload.data.title,
-        description: payload.data.description === "" ? null : payload.data.description,
-        price: price,
-        image: payload.data.image == "" ? null : payload.data.image,
-        track_stock: trackStock,
-        units: units
-      }
-
-      db.products
-        .update(whereArg, updateData)
-        .catch(e =>
-          logError(
-            'Something went wrong while updating sale, make sure that sale is not deleted',
-            e
-          )
-        )
-    })
-    .catch(e =>
-      logError(
-        'Something went wrong while looking for the sale, make sure that sale is not deleted',
-        e
-      )
-    )
-}
-
-function deleteSale(db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> Remove sale`, blockInfo.blockNumber)
-
-  // Soft delete sale
-  const updateData = {
-    is_deleted: true,
-    deleted_at: blockInfo.timestamp
-  }
-
-  db.products
-    .update(
-      {
-        id: payload.data.sale_id,
-        is_deleted: false
-      },
-      updateData
-    )
-    .catch(e =>
-      logError(
-        'Something went wrong while removing sale, make sure that sale is not deleted',
-        e
-      )
-    )
-}
-
-function reactSale(db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> Vote in a sale`, blockInfo.blockNumber)
-
-  const transaction = tx => {
-    // Find sale
-    tx.products
-      .findOne({
-        id: payload.data.sale_id,
-        is_deleted: false
-      })
-      .then(sale => {
-        if (sale === null) {
-          throw new Error('No sale data available')
-        }
-
-        const whereArg = {
-          product_id: sale.id,
-          account_id: payload.data.from
-        }
-
-        // Check if sale was previously voted
-        tx.sale_ratings.count(whereArg).then(total => {
-          if (total === '0') {
-            const data = {
-              product_id: sale.id,
-              account_id: payload.data.from,
-              rating: payload.data.type,
-              created_block: blockInfo.blockNumber,
-              created_tx: payload.transactionId,
-              created_eos_account: payload.authorization[0].actor,
-              created_at: blockInfo.timestamp
-            }
-
-            tx.sale_ratings.insert(data)
-          } else {
-            const updateData = {
-              rating: payload.data.type
-            }
-
-            tx.sale_ratings.update(whereArg, updateData)
-          }
-        })
-      })
-  }
-
-  db.withTransaction(transaction).catch(e =>
-    logError(
-      'Something went wrong while reacting to a sale, make sure that sale is not deleted',
-      e
-    )
-  )
 }
 
 function transferSale(db, payload, blockInfo, context) {
@@ -686,7 +532,7 @@ async function upsertRole(db, payload, blockInfo, _context) {
   }
 
   try {
-    const existingRole = await db.roles.findOne({ name: payload.data.name })
+    const existingRole = await db.roles.findOne({ name: payload.data.name, community_id: payload.data.community_id })
     if (existingRole != null) {
       roleData = Object.assign(roleData, { id: existingRole.id })
     }
@@ -744,10 +590,6 @@ module.exports = {
   upsertObjective,
   upsertAction,
   reward,
-  createSale,
-  updateSale,
-  deleteSale,
-  reactSale,
   transferSale,
   verifyClaim,
   claimAction,

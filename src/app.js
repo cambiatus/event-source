@@ -1,8 +1,8 @@
 const config = require(`./config/${process.env.NODE_ENV || 'dev'}`)
 const massive = require('massive')
 const { BaseActionWatcher } = require('demux')
-const { NodeosActionReader } = require('demux-eos')
-const { MassiveActionHandler } = require('demux-postgres')
+const { GetActionsReader } = require('./GetActionsReader')
+const { GetActionsHandler } = require('./GetActionsHandler')
 const { logInit, logExit } = require('./logging')
 
 const updaters = require('./updaters')
@@ -11,17 +11,19 @@ const effects = []
 const http = require('http')
 
 async function init () {
-  const actionReader = new NodeosActionReader(
+  const contracts = [config.blockchain.contract.community, config.blockchain.contract.token]
+  const actionReader = new GetActionsReader(
     config.blockchain.url,
+    contracts,
     config.blockchain.initialBlock
   )
   console.info(
-    `Querying EOS node on ${config.blockchain.url} on block#${config.blockchain.initialBlock}`
+    `Querying EOS node on ${config.blockchain.url} via get_actions for ${contracts.join(', ')} from block#${config.blockchain.initialBlock}`
   )
 
   massive(config.db).then(db => {
     console.info('Connected to postgres')
-    const actionHandler = new MassiveActionHandler(
+    const actionHandler = new GetActionsHandler(
       updaters,
       effects,
       db,
