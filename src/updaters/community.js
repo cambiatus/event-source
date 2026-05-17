@@ -126,7 +126,7 @@ async function updateCommunity(db, payload, blockInfo, context) {
       symbol: symbol,
       logo: payload.data.logo === "" ? null : payload.data.logo,
       name: payload.data.name,
-      description: payload.data.description === "" ? null : payload.data.description,
+      description: payload.data.description === "" ? "Cambiatus Community" : payload.data.description,
       inviter_reward: parseToken(payload.data.inviter_reward)[0],
       invited_reward: parseToken(payload.data.invited_reward)[0],
       has_objectives: payload.data.has_objectives === 1,
