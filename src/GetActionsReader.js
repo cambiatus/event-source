@@ -1,3 +1,5 @@
+const http = require('http')
+const https = require('https')
 const { URL } = require('url')
 const { AbstractActionReader } = require('demux')
 
@@ -16,15 +18,29 @@ class GetActionsReader extends AbstractActionReader {
     this._everReturnedBlock = false
   }
 
-  async _post (path, body) {
-    const url = new URL(path, this.nodeUrl)
-    const res = await fetch(url.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(30000)
+  _post (path, body) {
+    return new Promise((resolve, reject) => {
+      const url = new URL(path, this.nodeUrl)
+      const data = JSON.stringify(body)
+      const transport = url.protocol === 'https:' ? https : http
+      const req = transport.request({
+        hostname: url.hostname,
+        port: url.port || (url.protocol === 'https:' ? 443 : 80),
+        path: url.pathname,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
+      }, res => {
+        const chunks = []
+        res.on('data', chunk => chunks.push(chunk))
+        res.on('end', () => {
+          try { resolve(JSON.parse(Buffer.concat(chunks).toString())) } catch (e) { reject(e) }
+        })
+      })
+      req.setTimeout(30000, () => req.destroy(new Error('request timeout')))
+      req.on('error', reject)
+      req.write(data)
+      req.end()
     })
-    return res.json()
   }
 
   async getHeadBlockNumber () {
