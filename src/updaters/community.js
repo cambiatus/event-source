@@ -445,7 +445,7 @@ function claimAction(db, payload, blockInfo, context) {
     .catch(e => logError('Something went wrong while inserting a claim', e))
 }
 
-function verifyClaim(db, payload, blockInfo, context) {
+async function verifyClaim(db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Claim Verification`, blockInfo.blockNumber)
 
   const checkData = {
@@ -458,65 +458,43 @@ function verifyClaim(db, payload, blockInfo, context) {
     created_at: blockInfo.timestamp
   }
 
-  db.withTransaction(tx => {
-    // Save the Check
-    return tx.checks.insert(checkData).then(check => {
-      // Find the checks claim
-      tx.claims.findOne(check.claim_id).then(claim => {
-        console.log(`Cambiatus >>> Claim Verification: starting updating claims with id #${check.claim_id}`)
+  return db.withTransaction(async tx => {
+    const check = await tx.checks.insert(checkData)
+    const claim = await tx.claims.findOne(check.claim_id)
+    console.log(`Cambiatus >>> Claim Verification: starting updating claims with id #${check.claim_id}`)
 
-        if (claim === null) {
-          throw new Error('claim not available')
-        }
+    if (claim === null) {
+      throw new Error('claim not available')
+    }
 
-        // Find the claims action
-        tx.actions.findOne(claim.action_id).then(action => {
-          if (action === null) {
-            throw new Error('action not available')
-          }
+    const action = await tx.actions.findOne(claim.action_id)
+    if (action === null) {
+      throw new Error('action not available')
+    }
 
-          // Count positive votes
-          tx.checks
-            .count({ claim_id: claim.id, is_verified: true })
-            .then(positiveVotes => {
-              const positive = Number(positiveVotes)
-              console.log(`Cambiatus >>> Claim Verification: Positive votes: ${positiveVotes}`)
-              // Count negative votes
-              tx.checks
-                .count({ claim_id: claim.id, is_verified: false })
-                .then(negativeVotes => {
-                  const negative = Number(negativeVotes)
-                  console.log(`Cambiatus >>> Claim Verification: Negative votes: ${negativeVotes}`)
+    const positiveVotes = Number(await tx.checks.count({ claim_id: claim.id, is_verified: true }))
+    console.log(`Cambiatus >>> Claim Verification: Positive votes: ${positiveVotes}`)
 
-                  const majority = (action.verifications >> 1) + (action.verifications & 1)
+    const negativeVotes = Number(await tx.checks.count({ claim_id: claim.id, is_verified: false }))
+    console.log(`Cambiatus >>> Claim Verification: Negative votes: ${negativeVotes}`)
 
-                  let status = 'pending'
-                  if (positiveVotes >= majority || negativeVotes >= majority) {
-                    if (positive > negative) {
-                      status = 'approved'
-                    } else {
-                      status = 'rejected'
-                    }
-                  }
+    const majority = (action.verifications >> 1) + (action.verifications & 1)
 
-                  tx.claims.update(claim.id, { status: status })
-                  console.log(`Cambiatus >>> Claim Verification: Status Updated to: ${status}`)
+    let status = 'pending'
+    if (positiveVotes >= majority || negativeVotes >= majority) {
+      status = positiveVotes > negativeVotes ? 'approved' : 'rejected'
+    }
 
-                  if (status !== 'pending') {
-                    if (!action.is_completed && action.usages > 0) {
-                      tx.actions.update(action.id, {
-                        usages_left: action.usages_left - 1,
-                        is_completed: (action.usages_left - 1) === 0
-                      }).catch(e => logError('Setting action as completed failed', e))
-                    }
-                  }
-                })
-            })
-        })
+    await tx.claims.update(claim.id, { status: status })
+    console.log(`Cambiatus >>> Claim Verification: Status Updated to: ${status}`)
+
+    if (status !== 'pending' && !action.is_completed && action.usages > 0) {
+      await tx.actions.update(action.id, {
+        usages_left: action.usages_left - 1,
+        is_completed: (action.usages_left - 1) === 0
       })
-    })
+    }
   }).catch(e => logError('Something went wrong while inserting a check', e))
-
 }
 
 async function upsertRole(db, payload, blockInfo, _context) {

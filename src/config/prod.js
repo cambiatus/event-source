@@ -19,7 +19,8 @@ module.exports = {
     host: process.env.DB_HOST,
     port: 5432,
     database: process.env.DB_NAME,
-    schema: 'public'
+    schema: 'public',
+    ssl: { rejectUnauthorized: false }
   },
   http: {
     port: process.env.EVENT_SOURCE_HTTP_PORT
