@@ -178,9 +178,11 @@ class GetActionsReader extends AbstractActionReader {
 
     const targetBlock = this.currentBlockNumber + 1
 
-    // If we have a pending action exactly at targetBlock, return it
-    if (this.pendingActions.length > 0 && this.pendingActions[0].blockNum === targetBlock) {
-      return this._returnActionBlock(targetBlock)
+    // If we have a pending action at or before targetBlock, process it at its real block.
+    // The < case handles stale actions whose blockNum is behind currentBlockNumber (e.g.
+    // after a seekToBlock that overshoots the last indexed action).
+    if (this.pendingActions.length > 0 && this.pendingActions[0].blockNum <= targetBlock) {
+      return this._returnActionBlock(this.pendingActions[0].blockNum)
     }
 
     // If pending action is AHEAD of targetBlock, fill gap with synthetic block
@@ -199,8 +201,8 @@ class GetActionsReader extends AbstractActionReader {
     }
 
     if (this.pendingActions.length > 0) {
-      if (this.pendingActions[0].blockNum === targetBlock) {
-        return this._returnActionBlock(targetBlock)
+      if (this.pendingActions[0].blockNum <= targetBlock) {
+        return this._returnActionBlock(this.pendingActions[0].blockNum)
       }
       // Next action is ahead — fill gap
       return this._returnSyntheticBlock(targetBlock)
