@@ -4,10 +4,16 @@ const {
   parseToken
 } = require('../eos_helper')
 
-function createCommunity(db, payload, blockInfo) {
+async function createCommunity(db, payload, blockInfo) {
   console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
+
+  const existing = await db.communities.findOne({ symbol })
+  if (existing) {
+    console.log(`Cambiatus >>> Community ${symbol} already exists, skipping create`)
+    return
+  }
 
   const transaction = async tx => {
     // Upsert new domain existing subdomain
@@ -43,64 +49,43 @@ function createCommunity(db, payload, blockInfo) {
     }
 
     // create community
-    tx.communities
-      .insert(communityData)
-      .then(_community => {
-        const roleData = {
-          community_id: symbol,
-          name: 'member',
-          permissions: '{"invite", "claim", "order", "sell", "transfer"}',
-          inserted_at: new Date(),
-          updated_at: new Date()
-        }
+    await tx.communities.insert(communityData)
 
-        // create default role
-        tx.roles
-          .insert(roleData)
-          .then(role => {
-            const networkData = {
-              community_id: symbol,
-              account_id: payload.data.creator,
-              invited_by_id: payload.data.creator,
-              created_block: blockInfo.blockNumber,
-              created_tx: payload.transactionId,
-              created_eos_account: payload.authorization[0].actor,
-              created_at: blockInfo.timestamp
-            }
+    const roleData = {
+      community_id: symbol,
+      name: 'member',
+      permissions: '{"invite", "claim", "order", "sell", "transfer"}',
+      inserted_at: new Date(),
+      updated_at: new Date()
+    }
 
-            // invite community creator
-            tx.network
-              .insert(networkData)
-              .then(network => {
-                // insert network role
-                const networkRoleData = {
-                  network_id: network.id,
-                  role_id: role.id,
-                  inserted_at: new Date(),
-                  updated_at: new Date()
-                }
+    const role = await tx.roles.insert(roleData)
 
-                tx.network_roles
-                  .insert(networkRoleData)
-                  .catch(e => {
-                    logError('Something went wrong while associating network and role during community creation', e)
-                  })
-              })
-              .catch(e => {
-                logError('Something went wrong while adding community creator to network during community creation', e)
+    const networkData = {
+      community_id: symbol,
+      account_id: payload.data.creator,
+      invited_by_id: payload.data.creator,
+      created_block: blockInfo.blockNumber,
+      created_tx: payload.transactionId,
+      created_eos_account: payload.authorization[0].actor,
+      created_at: blockInfo.timestamp
+    }
 
-              })
-          })
-          .catch(e => {
-            logError('Something went wrong while adding the default role during community creation', e)
-          })
-      })
-      .catch(e => {
-        logError('Something went wrong while inserting a new community', e)
-      })
+    const network = await tx.network.insert(networkData)
+
+    const networkRoleData = {
+      network_id: network.id,
+      role_id: role.id,
+      inserted_at: new Date(),
+      updated_at: new Date()
+    }
+
+    await tx.network_roles.insert(networkRoleData)
   }
 
-  db.withTransaction(transaction)
+  return db.withTransaction(transaction).catch(e => {
+    logError('Something went wrong while creating community', e)
+  })
 }
 
 async function updateCommunity(db, payload, blockInfo, context) {
