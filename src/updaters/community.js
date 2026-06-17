@@ -511,8 +511,13 @@ async function assignRole(db, payload, blockInfo, _context) {
 
   // Make sure user belongs to the community
   const foundNetwork = await db.network.findOne({ community_id: payload.data.community_id, account_id: payload.data.member })
-  if (foundNetwork == null)
-    throw new Error('Network not found. Might have a database sync error')
+  if (foundNetwork == null) {
+    // Skip instead of crashing the whole sync: a stale/missing reference must not
+    // poison the process (it would otherwise exit and crash-loop under pm2).
+    logError('assignRole: network not found, skipping action (DB behind chain)',
+      new Error(`member=${payload.data.member} community=${payload.data.community_id} block=${blockInfo.blockNumber}`))
+    return
+  }
 
   const inserts = await payload.data.roles.reduce(async (memo, roleName) => {
     // Necessary javascript bullshit
@@ -520,8 +525,13 @@ async function assignRole(db, payload, blockInfo, _context) {
 
     // Make sure the role exists
     const foundRole = await db.roles.findOne({ community_id: payload.data.community_id, name: roleName })
-    if (foundRole == null)
-      throw new Error('Role not found. Might have a database sync error')
+    if (foundRole == null) {
+      // Skip just this role (DB roles table behind chain) and keep the rest,
+      // rather than throwing and crash-looping the whole sync.
+      logError('assignRole: role not found, skipping this role (DB behind chain)',
+        new Error(`role=${roleName} community=${payload.data.community_id} member=${payload.data.member} block=${blockInfo.blockNumber}`))
+      return results
+    }
 
     return [...results, {
       network_id: foundNetwork.id,
