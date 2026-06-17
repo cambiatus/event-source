@@ -35,32 +35,45 @@ async function updateToken (db, payload, blockInfo, context) {
     )
 }
 
-function transfer (db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> New Transfer`)
+async function transfer (db, payload, blockInfo, context) {
+  console.log('Cambiatus >>> New Transfer')
 
   const [amount, symbol] = parseToken(payload.data.quantity)
 
   const transferData = {
     from_id: payload.data.from,
     to_id: payload.data.to,
-    amount: amount,
+    amount,
     community_id: symbol,
-    memo: payload.data.memo === "" ? null : payload.data.memo,
+    memo: payload.data.memo === '' ? null : payload.data.memo,
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
     created_at: blockInfo.timestamp
   }
 
-  db.transfers
+  // Idempotency: a re-indexed block must not duplicate this row. Dedup on stable
+  // identity columns (amount is a float — excluded to avoid equality issues). This
+  // can't distinguish two truly identical transfers in one tx; the robust fix is a
+  // (created_tx, action_index) unique index added via a backend migration.
+  const existing = await db.transfers.count({
+    created_tx: payload.transactionId,
+    from_id: payload.data.from,
+    to_id: payload.data.to,
+    community_id: symbol,
+    created_block: blockInfo.blockNumber
+  })
+  if (Number(existing) > 0) return
+
+  await db.transfers
     .insert(transferData)
     .catch(e =>
       logError('Something went wrong while updating transfer data', e)
     )
 }
 
-function issue (db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> New Issue`)
+async function issue (db, payload, blockInfo, context) {
+  console.log('Cambiatus >>> New Issue')
 
   const [amount, symbol] = parseToken(payload.data.quantity)
   const data = {
@@ -74,7 +87,18 @@ function issue (db, payload, blockInfo, context) {
     created_at: blockInfo.timestamp
   }
 
-  db.mints
+  // Idempotency: a re-indexed block must not duplicate this mint. Dedup on stable
+  // identity columns (quantity is a float — excluded). See transfer() for the
+  // limitation and the proper (created_tx, action_index) backend-migration fix.
+  const existing = await db.mints.count({
+    created_tx: payload.transactionId,
+    to_id: payload.data.to,
+    community_id: symbol,
+    created_block: blockInfo.blockNumber
+  })
+  if (Number(existing) > 0) return
+
+  await db.mints
     .insert(data)
     .catch(e =>
       logError(
