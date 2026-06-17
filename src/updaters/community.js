@@ -140,59 +140,59 @@ async function updateCommunity(db, payload, blockInfo, context) {
 }
 
 async function netlink(db, payload, blockInfo, context) {
-  console.log(`Cambiatus >>> New Netlink`, blockInfo.blockNumber)
+  console.log('Cambiatus >>> New Netlink', blockInfo.blockNumber)
 
-  const countUsers = await db.users.count({ account: payload.data.new_user })
+  // NOTE: this updater runs inside the block-level serializable transaction that
+  // demux opens for every action of an on-chain tx (see handleWithState). We do NOT
+  // swallow errors here: a failed join must roll back the whole block (including the
+  // welcome issue/transfer) so we never commit a half-applied membership. All writes
+  // use ON CONFLICT DO NOTHING so a retried/re-indexed block is idempotent.
 
-  // Check if user isn't already created
-  if (countUsers === '0') {
-    try {
-      await db.users.insert({
-        account: payload.data.new_user,
-        created_block: blockInfo.blockNumber,
-        created_tx: payload.transactionId,
-        created_eos_account: payload.authorization[0].actor,
-        created_at: blockInfo.timestamp
-      })
-    } catch (e) {
-      logError('Something went wrong while inserting user', e)
-    }
-  }
+  // Idempotent user insert — relies on the unique/PK on users.account
+  await db.instance.none(
+    `INSERT INTO users (account, created_block, created_tx, created_eos_account, created_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT DO NOTHING`,
+    [
+      payload.data.new_user,
+      blockInfo.blockNumber,
+      payload.transactionId,
+      payload.authorization[0].actor,
+      blockInfo.timestamp
+    ]
+  )
 
-  const countNetwork = await db.network.count({
-    community_id: payload.data.community_id,
-    account_id: payload.data.new_user
+  // Idempotent membership insert — relies on the unique index on network(account_id, community_id).
+  // RETURNING yields the new row's id only when a row was actually inserted; on conflict it
+  // returns null, meaning the account is already a member and there is nothing left to do.
+  const network = await db.instance.oneOrNone(
+    `INSERT INTO network (community_id, account_id, invited_by_id, created_block, created_tx, created_eos_account, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT DO NOTHING
+     RETURNING id`,
+    [
+      payload.data.community_id,
+      payload.data.new_user,
+      payload.data.inviter,
+      blockInfo.blockNumber,
+      payload.transactionId,
+      payload.authorization[0].actor,
+      blockInfo.timestamp
+    ]
+  )
+
+  // Already a member — skip the role assignment
+  if (network == null) return
+
+  const role = await db.roles.findOne({ community_id: payload.data.community_id, name: 'member' })
+  if (role == null) throw new Error(`netlink: 'member' role not found for community ${payload.data.community_id}`)
+
+  await db.network_roles.insert({
+    network_id: network.id,
+    role_id: role.id,
+    inserted_at: new Date(),
+    updated_at: new Date()
   })
-
-  // if it contains at least one entry, finish the execution
-  if (countNetwork !== '0') return
-
-  // Try inserting network and roles
-  try {
-    const network = await db.network.insert({
-      community_id: payload.data.community_id,
-      account_id: payload.data.new_user,
-      invited_by_id: payload.data.inviter,
-      created_block: blockInfo.blockNumber,
-      created_tx: payload.transactionId,
-      created_eos_account: payload.authorization[0].actor,
-      created_at: blockInfo.timestamp
-    })
-
-    const role = await db.roles.findOne({ community_id: payload.data.community_id, name: 'member' })
-    if (role == null) throw new Error("Can't find role")
-
-    const networkRoleData = {
-      network_id: network.id,
-      role_id: role.id,
-      inserted_at: new Date(),
-      updated_at: new Date()
-    }
-
-    await db.network_roles.insert(networkRoleData)
-  } catch (error) {
-    logError('Something went wrong while trying to insert user and its role to the network', error)
-  }
 }
 
 function transferSale(db, payload, blockInfo, context) {
