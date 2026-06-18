@@ -52,16 +52,22 @@ async function transfer (db, payload, blockInfo, context) {
     created_at: blockInfo.timestamp
   }
 
-  // Idempotency: a re-indexed block must not duplicate this row. Dedup on stable
-  // identity columns (amount is a float — excluded to avoid equality issues). This
-  // can't distinguish two truly identical transfers in one tx; the robust fix is a
-  // (created_tx, action_index) unique index added via a backend migration.
+  // Idempotency: a re-indexed block must not duplicate this row. amount + memo are
+  // part of the key on purpose: one tx legitimately carries several transfers to the
+  // same recipient (e.g. a verify reward and a do reward) that must NOT collapse into
+  // one another. A re-indexed copy is byte-identical, so amount (the same float re-
+  // parsed from the same on-chain asset string) and memo still match exactly. What
+  // this still can't distinguish is two *truly identical* transfers in one tx; the
+  // robust fix for that is a (created_tx, action_index) unique index via a backend
+  // migration.
   const existing = await db.transfers.count({
     created_tx: payload.transactionId,
     from_id: payload.data.from,
     to_id: payload.data.to,
     community_id: symbol,
-    created_block: blockInfo.blockNumber
+    created_block: blockInfo.blockNumber,
+    amount: transferData.amount,
+    memo: transferData.memo
   })
   if (Number(existing) > 0) return
 
@@ -87,14 +93,18 @@ async function issue (db, payload, blockInfo, context) {
     created_at: blockInfo.timestamp
   }
 
-  // Idempotency: a re-indexed block must not duplicate this mint. Dedup on stable
-  // identity columns (quantity is a float — excluded). See transfer() for the
-  // limitation and the proper (created_tx, action_index) backend-migration fix.
+  // Idempotency: a re-indexed block must not duplicate this mint. quantity + memo are
+  // part of the key (see transfer()): distinct mints in a single tx — e.g. a verify
+  // reward and a do reward to the same recipient — must be kept, while a byte-identical
+  // re-indexed copy still matches and is skipped. The residual case (two truly
+  // identical mints in one tx) needs the (created_tx, action_index) backend fix.
   const existing = await db.mints.count({
     created_tx: payload.transactionId,
     to_id: payload.data.to,
     community_id: symbol,
-    created_block: blockInfo.blockNumber
+    created_block: blockInfo.blockNumber,
+    quantity: data.quantity,
+    memo: data.memo
   })
   if (Number(existing) > 0) return
 
