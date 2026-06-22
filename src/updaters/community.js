@@ -4,7 +4,7 @@ const {
   parseToken
 } = require('../eos_helper')
 
-async function createCommunity(db, payload, blockInfo) {
+async function createCommunity (db, payload, blockInfo) {
   console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
@@ -31,9 +31,9 @@ async function createCommunity(db, payload, blockInfo) {
     const communityData = {
       symbol: symbol,
       creator: payload.data.creator,
-      logo: payload.data.logo === "" ? null : payload.data.logo,
+      logo: payload.data.logo === '' ? null : payload.data.logo,
       name: payload.data.name,
-      description: payload.data.description === "" ? null : payload.data.description,
+      description: payload.data.description === '' ? null : payload.data.description,
       inviter_reward: parseToken(payload.data.inviter_reward)[0],
       invited_reward: parseToken(payload.data.invited_reward)[0],
       has_objectives: payload.data.has_objectives === 1,
@@ -41,7 +41,7 @@ async function createCommunity(db, payload, blockInfo) {
       has_kyc: payload.data.has_kyc === 1,
       auto_invite: payload.data.auto_invite === 1,
       subdomain_id: subdomainId,
-      website: payload.data.website === "" ? null : payload.data.website,
+      website: payload.data.website === '' ? null : payload.data.website,
       created_block: blockInfo.blockNumber,
       created_tx: payload.transactionId,
       created_eos_account: payload.authorization[0].actor,
@@ -88,7 +88,7 @@ async function createCommunity(db, payload, blockInfo) {
   })
 }
 
-async function updateCommunity(db, payload, blockInfo, context) {
+async function updateCommunity (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Update community logo`, blockInfo.blockNumber)
 
   const symbol = getSymbolFromAsset(payload.data.cmm_asset)
@@ -109,9 +109,9 @@ async function updateCommunity(db, payload, blockInfo, context) {
 
     const updateData = {
       symbol: symbol,
-      logo: payload.data.logo === "" ? null : payload.data.logo,
+      logo: payload.data.logo === '' ? null : payload.data.logo,
       name: payload.data.name,
-      description: payload.data.description === "" ? "Cambiatus Community" : payload.data.description,
+      description: payload.data.description === '' ? 'Cambiatus Community' : payload.data.description,
       inviter_reward: parseToken(payload.data.inviter_reward)[0],
       invited_reward: parseToken(payload.data.invited_reward)[0],
       has_objectives: payload.data.has_objectives === 1,
@@ -119,7 +119,7 @@ async function updateCommunity(db, payload, blockInfo, context) {
       has_kyc: payload.data.has_kyc === 1,
       auto_invite: payload.data.auto_invite === 1,
       subdomain_id: subdomain.id,
-      website: payload.data.website === "" ? null : payload.data.website
+      website: payload.data.website === '' ? null : payload.data.website
     }
 
     // Find the community
@@ -139,7 +139,7 @@ async function updateCommunity(db, payload, blockInfo, context) {
   }
 }
 
-async function netlink(db, payload, blockInfo, context) {
+async function netlink (db, payload, blockInfo, context) {
   console.log('Cambiatus >>> New Netlink', blockInfo.blockNumber)
 
   // NOTE: this updater runs inside the block-level serializable transaction that
@@ -195,12 +195,25 @@ async function netlink(db, payload, blockInfo, context) {
   })
 }
 
-function transferSale(db, payload, blockInfo, context) {
+function transferSale (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> New Transfer Sale`, blockInfo.blockNumber)
 
-  const transaction = tx => {
+  const transaction = async tx => {
     const [amount] = parseToken(payload.data.quantity)
     const symbol = getSymbolFromAsset(payload.data.quantity)
+
+    // Idempotency: a re-indexed block must not duplicate this order (and must not
+    // decrement product stock twice). Bail out before touching units if an order for
+    // this tx already exists. Keyed on (created_tx, from_id, product_id) — a re-indexed
+    // copy is byte-identical, and a single buyer can't legitimately purchase the same
+    // product twice in one tx, so this collapses true duplicates without dropping real
+    // orders. Enforced at the DB level by orders_dedup_idx (backend migration).
+    const existing = await tx.orders.count({
+      created_tx: payload.transactionId,
+      from_id: payload.data.from,
+      product_id: payload.data.sale_id
+    })
+    if (Number(existing) > 0) return
 
     const whereArg = {
       id: payload.data.sale_id,
@@ -247,7 +260,7 @@ function transferSale(db, payload, blockInfo, context) {
   )
 }
 
-function upsertObjective(db, payload, blockInfo, _context) {
+function upsertObjective (db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Objective`, blockInfo.blockNumber)
 
   let data = {
@@ -271,7 +284,7 @@ function upsertObjective(db, payload, blockInfo, _context) {
     )
 }
 
-function upsertAction(db, payload, blockInfo, _context) {
+function upsertAction (db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Action`, blockInfo.blockNumber)
 
   const [rewardAmount] = parseToken(payload.data.reward)
@@ -308,8 +321,8 @@ function upsertAction(db, payload, blockInfo, _context) {
       created_eos_account: payload.authorization[0].actor,
       has_proof_photo: payload.data.has_proof_photo === 1,
       has_proof_code: payload.data.has_proof_code === 1,
-      photo_proof_instructions: payload.data.photo_proof_instructions === "" ? null : payload.data.photo_proof_instructions,
-      image: payload.data.image === "" ? null : payload.data.image
+      photo_proof_instructions: payload.data.photo_proof_instructions === '' ? null : payload.data.photo_proof_instructions,
+      image: payload.data.image === '' ? null : payload.data.image
     }
 
     if (payload.data.action_id > 0) {
@@ -367,7 +380,7 @@ function upsertAction(db, payload, blockInfo, _context) {
   })
 }
 
-function reward(db, payload, blockInfo, context) {
+function reward (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Action reward`, blockInfo.blockNumber)
 
   // Collect the action
@@ -405,13 +418,24 @@ function reward(db, payload, blockInfo, context) {
 
       db.rewards.save(data)
         .catch(e => logError('Cant insert reward data', e))
-
     })
     .catch(e => logError('Something went wrong while finding an action', e))
 }
 
-function claimAction(db, payload, blockInfo, context) {
+async function claimAction (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Claim an Action`, blockInfo.blockNumber)
+
+  // Idempotency: a re-indexed block must not duplicate this claim. Without this guard a
+  // reindex re-inserts the claim as a fresh `pending` row with no checks, surfacing as a
+  // duplicate that looks un-approved. Keyed on (created_tx, action_id, claimer_id) — a
+  // single maker can't claim the same action twice in one tx, so this collapses true
+  // duplicates without dropping real claims. Enforced at the DB level by claims_dedup_idx.
+  const existing = await db.claims.count({
+    created_tx: payload.transactionId,
+    action_id: payload.data.action_id,
+    claimer_id: payload.data.maker
+  })
+  if (Number(existing) > 0) return
 
   const data = {
     action_id: payload.data.action_id,
@@ -421,16 +445,16 @@ function claimAction(db, payload, blockInfo, context) {
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
     created_at: blockInfo.timestamp,
-    proof_photo: payload.data.proof_photo === "" ? null : payload.data.proof_photo,
-    proof_code: payload.data.proof_code === "" ? null : payload.data.proof_code
+    proof_photo: payload.data.proof_photo === '' ? null : payload.data.proof_photo,
+    proof_code: payload.data.proof_code === '' ? null : payload.data.proof_code
   }
 
-  db.claims
+  await db.claims
     .insert(data)
     .catch(e => logError('Something went wrong while inserting a claim', e))
 }
 
-async function verifyClaim(db, payload, blockInfo, context) {
+async function verifyClaim (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Claim Verification`, blockInfo.blockNumber)
 
   const checkData = {
@@ -482,14 +506,14 @@ async function verifyClaim(db, payload, blockInfo, context) {
   }).catch(e => logError('Something went wrong while inserting a check', e))
 }
 
-async function upsertRole(db, payload, blockInfo, _context) {
+async function upsertRole (db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Role`, blockInfo.blockNumber)
 
   let roleData = {
     community_id: payload.data.community_id,
     name: payload.data.name,
     color: payload.data.color,
-    permissions: '{' + payload.data.permissions.map(p => `"${p}"`).join(", ") + '}',
+    permissions: '{' + payload.data.permissions.map(p => `"${p}"`).join(', ') + '}',
     inserted_at: new Date(),
     updated_at: new Date()
   }
@@ -506,7 +530,7 @@ async function upsertRole(db, payload, blockInfo, _context) {
   }
 }
 
-async function assignRole(db, payload, blockInfo, _context) {
+async function assignRole (db, payload, blockInfo, _context) {
   console.log('Cambiatus >>> Assign Role', blockInfo.blockNumber)
 
   // `assignroles` is REPLACE-ALL: payload.data.roles is the member's COMPLETE desired
