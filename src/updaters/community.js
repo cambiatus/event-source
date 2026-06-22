@@ -509,6 +509,15 @@ async function upsertRole(db, payload, blockInfo, _context) {
 async function assignRole(db, payload, blockInfo, _context) {
   console.log('Cambiatus >>> Assign Role', blockInfo.blockNumber)
 
+  // `assignroles` is REPLACE-ALL: payload.data.roles is the member's COMPLETE desired
+  // role-name list. After this updater the member's network_roles rows must EXACTLY equal
+  // that list — insert the missing ones and DELETE the rows for roles no longer present.
+  //
+  // NOTE: `db` here is already the block-level serializable transaction opened by demux
+  // (see GetActionsHandler.handleWithState). We write directly on it — mirroring netlink —
+  // instead of opening a nested db.withTransaction, so every change is atomic with the
+  // block and there is no separate connection that could commit before our writes land.
+
   // Make sure user belongs to the community
   const foundNetwork = await db.network.findOne({ community_id: payload.data.community_id, account_id: payload.data.member })
   if (foundNetwork == null) {
@@ -519,40 +528,43 @@ async function assignRole(db, payload, blockInfo, _context) {
     return
   }
 
-  const inserts = await payload.data.roles.reduce(async (memo, roleName) => {
-    // Necessary javascript bullshit
-    const results = await memo
-
-    // Make sure the role exists
+  // Resolve each desired role name to its roles.id for this community. Unknown role names
+  // (DB roles table behind chain) are skipped and logged rather than throwing, so we keep
+  // the rest of the list and avoid crash-looping the sync.
+  const desiredRoleIds = []
+  for (const roleName of payload.data.roles) {
     const foundRole = await db.roles.findOne({ community_id: payload.data.community_id, name: roleName })
     if (foundRole == null) {
-      // Skip just this role (DB roles table behind chain) and keep the rest,
-      // rather than throwing and crash-looping the whole sync.
       logError('assignRole: role not found, skipping this role (DB behind chain)',
         new Error(`role=${roleName} community=${payload.data.community_id} member=${payload.data.member} block=${blockInfo.blockNumber}`))
-      return results
+      continue
     }
 
-    return [...results, {
+    desiredRoleIds.push(foundRole.id)
+  }
+
+  // Current role ids the member has in Postgres
+  const currentNetworkRoles = await db.network_roles.find({ network_id: foundNetwork.id })
+  const currentRoleIds = currentNetworkRoles.map(networkRole => networkRole.role_id)
+
+  // DELETE rows for roles the member no longer has (present in DB, absent from the action).
+  // This is the bit that was missing: without it, removing a role on-chain never reflected
+  // in Postgres.
+  const roleIdsToRemove = currentRoleIds.filter(roleId => !desiredRoleIds.includes(roleId))
+  for (const roleId of roleIdsToRemove) {
+    await db.network_roles.destroy({ network_id: foundNetwork.id, role_id: roleId })
+  }
+
+  // INSERT rows for roles the member gained (present in the action, absent from DB).
+  // Re-processing the same action inserts nothing here, so the updater is idempotent.
+  const roleIdsToAdd = desiredRoleIds.filter(roleId => !currentRoleIds.includes(roleId))
+  for (const roleId of roleIdsToAdd) {
+    await db.network_roles.insert({
       network_id: foundNetwork.id,
-      role_id: foundRole.id,
+      role_id: roleId,
       inserted_at: new Date(),
       updated_at: new Date()
-    }]
-  }, [])
-
-  try {
-    db.withTransaction(async tx => {
-      // Delete all member current roles
-      await tx.network_roles.destroy({ network_id: foundNetwork.id })
-
-      // Insert all data
-      inserts.forEach(async (data) => {
-        await tx.network_roles.insert(data)
-      });
     })
-  } catch (error) {
-    logError('Something went wrong while trying to delete and assign roles to an user', error)
   }
 }
 
