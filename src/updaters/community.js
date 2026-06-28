@@ -55,6 +55,7 @@ async function createCommunity (db, payload, blockInfo) {
       community_id: symbol,
       name: 'member',
       permissions: '{"invite", "claim", "order", "sell", "transfer"}',
+      created_tx: payload.transactionId,
       inserted_at: new Date(),
       updated_at: new Date()
     }
@@ -76,6 +77,7 @@ async function createCommunity (db, payload, blockInfo) {
     const networkRoleData = {
       network_id: network.id,
       role_id: role.id,
+      created_tx: payload.transactionId,
       inserted_at: new Date(),
       updated_at: new Date()
     }
@@ -190,6 +192,7 @@ async function netlink (db, payload, blockInfo, context) {
   await db.network_roles.insert({
     network_id: network.id,
     role_id: role.id,
+    created_tx: payload.transactionId,
     inserted_at: new Date(),
     updated_at: new Date()
   })
@@ -514,6 +517,7 @@ async function upsertRole (db, payload, blockInfo, _context) {
     name: payload.data.name,
     color: payload.data.color,
     permissions: '{' + payload.data.permissions.map(p => `"${p}"`).join(', ') + '}',
+    created_tx: payload.transactionId,
     inserted_at: new Date(),
     updated_at: new Date()
   }
@@ -586,6 +590,7 @@ async function assignRole (db, payload, blockInfo, _context) {
     await db.network_roles.insert({
       network_id: foundNetwork.id,
       role_id: roleId,
+      created_tx: payload.transactionId,
       inserted_at: new Date(),
       updated_at: new Date()
     })
