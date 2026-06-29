@@ -338,42 +338,36 @@ function upsertAction (db, payload, blockInfo, _context) {
     }
 
     db.withTransaction(tx => {
-      return tx.actions
-        .save(data)
-        .then(savedAction => {
-          // In case of a update delete all older validators and add new ones
-          if (payload.data.action_id > 0) {
-            db.validators
-              .destroy({ action_id: payload.data.action_id })
-              .catch(e =>
-                logError(
-                  'Something went wrong while deleting old validators',
-                  e
-                )
-              )
-          }
+      return tx.actions.save(data).then(savedAction => {
+        // On update, replace the validator set: delete the old rows then
+        // re-insert from validators_str. Both the delete and the inserts run
+        // inside `tx` and are awaited, so the transaction commits only after
+        // they complete. Previously the delete ran on `db` (a separate
+        // connection) and neither it nor the inserts were awaited, so the tx
+        // could commit before the inserts landed — or the out-of-tx delete
+        // could race and wipe them — leaving an action with zero validators
+        // and its claims permanently invisible to validators. Any failure now
+        // rolls back the whole action instead of being silently swallowed.
+        const replaceValidators =
+          payload.data.action_id > 0
+            ? tx.validators.destroy({ action_id: payload.data.action_id })
+            : Promise.resolve()
 
-          validators.map(validator => {
-            const validatorData = {
-              action_id: savedAction.id,
-              validator_id: validator,
-              created_block: blockInfo.blockNumber,
-              created_tx: payload.transactionId,
-              created_eos_account: payload.authorization[0].actor,
-              created_at: blockInfo.timestamp
-            }
-
-            tx.validators
-              .insert(validatorData)
-              .catch(e =>
-                logError(
-                  'Something went wrong while adding a validator to the list',
-                  e
-                )
-              )
-          })
-        })
-        .catch(e => logError('Error while creating an action', e))
+        return replaceValidators.then(() =>
+          Promise.all(
+            validators.map(validator =>
+              tx.validators.insert({
+                action_id: savedAction.id,
+                validator_id: validator,
+                created_block: blockInfo.blockNumber,
+                created_tx: payload.transactionId,
+                created_eos_account: payload.authorization[0].actor,
+                created_at: blockInfo.timestamp
+              })
+            )
+          )
+        )
+      })
     }).catch(e =>
       logError(
         'Something went wrong while executing transaction to create an action',
