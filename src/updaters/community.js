@@ -3,6 +3,8 @@ const {
   getSymbolFromAsset,
   parseToken
 } = require('../eos_helper')
+const config = require(`../config/${process.env.NODE_ENV || 'dev'}`)
+const { resolveClaimId } = require('../chain')
 
 async function createCommunity (db, payload, blockInfo) {
   console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
@@ -434,7 +436,37 @@ async function claimAction (db, payload, blockInfo, context) {
   })
   if (Number(existing) > 0) return
 
+  // The DB claim.id MUST equal the chain claim id — the frontend signs
+  // verifyclaim(claim.id) against the chain. The `claimaction` payload does not
+  // carry the id (the contract generates it), so historically we let the DB serial
+  // assign it, which drifts from the chain id after any duplicate/extra insert and
+  // leaves claims unverifiable. Recover the real id from chain: the nth claim (by
+  // ascending id) for this (action, claimer) is the nth we process for that pair.
+  //
+  // On any failure (chain unreachable, unexpected count) we fall back to the serial
+  // rather than throw — a throw here becomes an unhandledRejection → process exit →
+  // pm2 crash-loop. The serial is realigned to the chain by the one-time
+  // claims-id-reconciliation, so the fallback stays correct unless a new drift is
+  // introduced; the explicit-id path is what makes it robust against that.
+  let claimId
+  try {
+    const ordinal = Number(await db.claims.count({
+      action_id: payload.data.action_id,
+      claimer_id: payload.data.maker
+    }))
+    claimId = await resolveClaimId(
+      config.blockchain.contract.community,
+      payload.data.action_id,
+      payload.data.maker,
+      ordinal
+    )
+  } catch (e) {
+    logError('Could not resolve chain claim id, falling back to serial', e)
+    claimId = undefined
+  }
+
   const data = {
+    ...(claimId ? { id: claimId } : {}),
     action_id: payload.data.action_id,
     claimer_id: payload.data.maker,
     status: 'pending',
