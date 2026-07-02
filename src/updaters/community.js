@@ -476,13 +476,19 @@ async function reward (db, payload, blockInfo, context) {
 
   // Idempotency: a re-indexed block must not double-apply this reward. Without this guard a
   // replay both re-inserts the reward row AND decrements the action's usages_left a second
-  // time (double corruption). Keyed on (action_id, receiver_id, awarder_id) — an automatic
-  // action rewards a given receiver once per awarder, so this collapses true duplicates
-  // without dropping real rewards. Mirrors the claimAction/transfer guards.
+  // time (double corruption). Keyed on (action_id, receiver_id, awarder_id, created_tx):
+  // the contract's reward() has NO uniqueness check, so the same trio can legitimately be
+  // awarded again for a repeatable automatic action — a different tx must NOT be collapsed.
+  // Legacy rows predate the created_tx column (NULL); for those the trio alone decides,
+  // which matches the old behavior (no legitimate repeat exists in that data).
   const existing = await db.rewards.count({
     action_id: payload.data.action_id,
     receiver_id: payload.data.receiver,
-    awarder_id: payload.data.awarder
+    awarder_id: payload.data.awarder,
+    or: [
+      { created_tx: payload.transactionId },
+      { created_tx: null }
+    ]
   })
   if (Number(existing) > 0) return
 
@@ -510,11 +516,13 @@ async function reward (db, payload, blockInfo, context) {
           )
       }
 
-      // Insert reward
+      // Insert reward. created_tx is the provenance the guard above keys on — without it
+      // a legitimate repeat award is indistinguishable from a replayed block.
       const data = {
         action_id: a.id,
         receiver_id: payload.data.receiver,
         awarder_id: payload.data.awarder,
+        created_tx: payload.transactionId,
         inserted_at: new Date(),
         updated_at: new Date()
       }
