@@ -265,7 +265,7 @@ function transferSale (db, payload, blockInfo, context) {
   )
 }
 
-function upsertObjective (db, payload, blockInfo, _context) {
+async function upsertObjective (db, payload, blockInfo, _context) {
   console.log(`Cambiatus >>> Upsert Objective`, blockInfo.blockNumber)
 
   let data = {
@@ -280,9 +280,17 @@ function upsertObjective (db, payload, blockInfo, _context) {
 
   if (payload.data.objective_id > 0) {
     data = Object.assign(data, { id: payload.data.objective_id })
+  } else {
+    // Idempotency (create path only): with no objective_id the payload carries no key, so
+    // db.objectives.save() would INSERT a fresh row on every replay, duplicating the
+    // objective. Keyed on created_tx — a create runs in exactly one on-chain tx, so a
+    // matching row means we already indexed this create. The update path (objective_id > 0)
+    // is already an idempotent upsert by id and is left untouched.
+    const existing = await db.objectives.count({ created_tx: payload.transactionId })
+    if (Number(existing) > 0) return
   }
 
-  db.objectives
+  return db.objectives
     .save(data)
     .catch(e =>
       logError('Something went wrong while updating objective', e)
@@ -300,7 +308,7 @@ function upsertAction (db, payload, blockInfo, _context) {
       ? payload.data.validators_str.split('-')
       : []
 
-  db.objectives.findOne({ id: payload.data.objective_id }).then(o => {
+  return db.objectives.findOne({ id: payload.data.objective_id }).then(async o => {
     if (o === null) {
       console.error(
         `Objective with the id ${payload.data.objective_id} does not exist`
@@ -337,9 +345,17 @@ function upsertAction (db, payload, blockInfo, _context) {
         usages_left: payload.data.usages_left,
         is_completed: payload.data.is_completed === 1
       })
+    } else {
+      // Idempotency (create path only): with no action_id the payload carries no key, so
+      // tx.actions.save() would INSERT a fresh row on every replay, duplicating the action
+      // (the audit found action ids 405+406 sharing one created_tx). Keyed on created_tx —
+      // a create runs in exactly one on-chain tx, so a matching row means we already indexed
+      // it. The update path (action_id > 0) is already an idempotent upsert by id.
+      const existing = await db.actions.count({ created_tx: payload.transactionId })
+      if (Number(existing) > 0) return
     }
 
-    db.withTransaction(tx => {
+    return db.withTransaction(tx => {
       return tx.actions.save(data).then(savedAction => {
         // On update, replace the validator set: delete the old rows then
         // re-insert from validators_str. Both the delete and the inserts run
@@ -379,11 +395,23 @@ function upsertAction (db, payload, blockInfo, _context) {
   })
 }
 
-function reward (db, payload, blockInfo, context) {
+async function reward (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Action reward`, blockInfo.blockNumber)
 
+  // Idempotency: a re-indexed block must not double-apply this reward. Without this guard a
+  // replay both re-inserts the reward row AND decrements the action's usages_left a second
+  // time (double corruption). Keyed on (action_id, receiver_id, awarder_id) — an automatic
+  // action rewards a given receiver once per awarder, so this collapses true duplicates
+  // without dropping real rewards. Mirrors the claimAction/transfer guards.
+  const existing = await db.rewards.count({
+    action_id: payload.data.action_id,
+    receiver_id: payload.data.receiver,
+    awarder_id: payload.data.awarder
+  })
+  if (Number(existing) > 0) return
+
   // Collect the action
-  db.actions
+  return db.actions
     .findOne(payload.data.action_id)
     .then(a => {
       if (a === null) {
@@ -497,9 +525,20 @@ async function verifyClaim (db, payload, blockInfo, context) {
   }
 
   return db.withTransaction(async tx => {
-    const check = await tx.checks.insert(checkData)
-    const claim = await tx.claims.findOne(check.claim_id)
-    console.log(`Cambiatus >>> Claim Verification: starting updating claims with id #${check.claim_id}`)
+    // Idempotency: the contract enforces exactly one vote per validator per claim, so a
+    // replay must not insert a second check — doing so would inflate the vote counts below
+    // and flip the claim to a wrong status. Keyed on (claim_id, validator_id): if this
+    // validator already voted on this claim, skip the insert but still recompute the status.
+    const alreadyVoted = Number(await tx.checks.count({
+      claim_id: payload.data.claim_id,
+      validator_id: payload.data.verifier
+    }))
+    if (alreadyVoted === 0) {
+      await tx.checks.insert(checkData)
+    }
+
+    const claim = await tx.claims.findOne(payload.data.claim_id)
+    console.log(`Cambiatus >>> Claim Verification: starting updating claims with id #${payload.data.claim_id}`)
 
     if (claim === null) {
       throw new Error('claim not available')
@@ -510,6 +549,10 @@ async function verifyClaim (db, payload, blockInfo, context) {
       throw new Error('action not available')
     }
 
+    // Recompute the status as a pure function of the CURRENT checks for this claim (not an
+    // increment), matching the contract's verifyclaim math byte-for-byte. Because it derives
+    // purely from the persisted checks it is self-healing: any future reprocess converges the
+    // ~6,700 claims stuck `rejected` in Postgres back to their true on-chain status.
     const positiveVotes = Number(await tx.checks.count({ claim_id: claim.id, is_verified: true }))
     console.log(`Cambiatus >>> Claim Verification: Positive votes: ${positiveVotes}`)
 
@@ -526,7 +569,10 @@ async function verifyClaim (db, payload, blockInfo, context) {
     await tx.claims.update(claim.id, { status: status })
     console.log(`Cambiatus >>> Claim Verification: Status Updated to: ${status}`)
 
-    if (status !== 'pending' && !action.is_completed && action.usages > 0) {
+    // Decrement usages_left exactly once, on the first pending -> resolved transition. On a
+    // replay the claim's stored status is already resolved, so this is skipped and we never
+    // double-decrement. Preserves the contract's `!is_completed && usages > 0` conditions.
+    if (claim.status === 'pending' && status !== 'pending' && !action.is_completed && action.usages > 0) {
       await tx.actions.update(action.id, {
         usages_left: action.usages_left - 1,
         is_completed: (action.usages_left - 1) === 0
