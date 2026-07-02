@@ -22,6 +22,40 @@ const {
   initacc
 } = require('./updaters/token.js')
 
+// Persistent replay guard around every updater, keyed on the action's
+// global_action_seq (set by GetActionsReader; unique across contracts). The INSERT
+// atomically claims the seq inside the same block-level transaction demux opened for the
+// updater's writes (`db` IS that transaction — see netlink/assignRole), so:
+//   * ledger row + domain writes commit or roll back together;
+//   * a reindex/seek over already-processed actions is a no-op here, regardless of the
+//     per-updater guards (which stay on as the second layer — they also cover history
+//     processed before this ledger existed, which has no rows in it);
+//   * the in-memory seenGlobalSeqs Set in the reader remains the fast path; this is the
+//     one that survives restarts.
+// Caveat (pre-existing): updaters that open their own inner db.withTransaction commit on
+// a separate connection, so their writes aren't atomic with the ledger row — exactly as
+// they already weren't atomic with demux's _block_number_txid. The per-updater guards
+// cover that window.
+function ledgered (updater) {
+  return async function (db, payload, blockInfo, context) {
+    const seq = payload.globalSequence
+    if (seq == null) return updater(db, payload, blockInfo, context)
+
+    const claimed = await db.instance.oneOrNone(
+      `INSERT INTO _processed_actions (global_seq) VALUES ($1)
+       ON CONFLICT DO NOTHING
+       RETURNING global_seq`,
+      [seq]
+    )
+    if (claimed == null) {
+      console.log(`Cambiatus >>> Skipping already-processed action (global_seq ${seq})`)
+      return
+    }
+
+    return updater(db, payload, blockInfo, context)
+  }
+}
+
 const updaters = [
   // ======== Community
   {
@@ -99,4 +133,5 @@ const updaters = [
   }
 ]
 
-module.exports = updaters
+// Every updater goes through the ledger — including ones added later.
+module.exports = updaters.map(entry => ({ ...entry, updater: ledgered(entry.updater) }))
