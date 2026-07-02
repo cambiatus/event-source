@@ -4,7 +4,7 @@ const {
   parseToken
 } = require('../eos_helper')
 const config = require(`../config/${process.env.NODE_ENV || 'dev'}`)
-const { resolveClaimId } = require('../chain')
+const { resolveClaimId, resolveCreatedActionId, resolveCreatedObjectiveId } = require('../chain')
 
 async function createCommunity (db, payload, blockInfo) {
   console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
@@ -279,21 +279,57 @@ async function upsertObjective (db, payload, blockInfo, _context) {
   }
 
   if (payload.data.objective_id > 0) {
+    // Update path: an idempotent upsert by id (massive's save() emits an UPDATE
+    // when the pk is present).
     data = Object.assign(data, { id: payload.data.objective_id })
-  } else {
-    // Idempotency (create path only): with no objective_id the payload carries no key, so
-    // db.objectives.save() would INSERT a fresh row on every replay, duplicating the
-    // objective. Keyed on created_tx — a create runs in exactly one on-chain tx, so a
-    // matching row means we already indexed this create. The update path (objective_id > 0)
-    // is already an idempotent upsert by id and is left untouched.
-    const existing = await db.objectives.count({ created_tx: payload.transactionId })
-    if (Number(existing) > 0) return
+    return db.objectives
+      .save(data)
+      .catch(e =>
+        logError('Something went wrong while updating objective', e)
+      )
   }
 
+  // Idempotency (create path only): with no objective_id the payload carries no key, so
+  // inserting without a guard would add a fresh row on every replay, duplicating the
+  // objective. Keyed on created_tx — a create runs in exactly one on-chain tx, so a
+  // matching row means we already indexed this create.
+  const existing = await db.objectives.count({ created_tx: payload.transactionId })
+  if (Number(existing) > 0) return
+
+  // The DB objective.id MUST equal the chain objective id — the frontend signs
+  // upsertobjctv(objective_id = db id) against the chain, so a drifted serial makes
+  // the objective un-editable (and its actions un-creatable). The create payload
+  // carries objective_id = 0 (the contract generates the id), so historically the DB
+  // serial assigned it, which drifts from the chain counter after any duplicate/extra
+  // insert. Recover the real id from chain: the smallest on-chain id this community
+  // has that we don't have yet is this create (blocks are processed in order).
+  //
+  // On any failure (chain unreachable, no missing id) we fall back to the serial
+  // rather than throw — a throw here becomes an unhandledRejection → process exit →
+  // pm2 crash-loop. The serial was realigned to the chain counter by the 2026-07-02
+  // remediation, so the fallback stays correct unless a new drift is introduced; the
+  // explicit-id path is what keeps that drift from re-opening.
+  try {
+    const known = await db.objectives.find(
+      { community_id: payload.data.community_id },
+      { fields: ['id'] }
+    )
+    data.id = await resolveCreatedObjectiveId(
+      config.blockchain.contract.community,
+      payload.data.community_id,
+      new Set(known.map(o => Number(o.id)))
+    )
+  } catch (e) {
+    logError('Could not resolve chain objective id, falling back to serial', e)
+    delete data.id
+  }
+
+  // insert(), not save(): with an id present save() emits an UPDATE (matching
+  // nothing for a new id); without one the serial assigns it.
   return db.objectives
-    .save(data)
+    .insert(data)
     .catch(e =>
-      logError('Something went wrong while updating objective', e)
+      logError('Something went wrong while creating objective', e)
     )
 }
 
@@ -347,16 +383,56 @@ function upsertAction (db, payload, blockInfo, _context) {
       })
     } else {
       // Idempotency (create path only): with no action_id the payload carries no key, so
-      // tx.actions.save() would INSERT a fresh row on every replay, duplicating the action
-      // (the audit found action ids 405+406 sharing one created_tx). Keyed on created_tx —
-      // a create runs in exactly one on-chain tx, so a matching row means we already indexed
-      // it. The update path (action_id > 0) is already an idempotent upsert by id.
+      // inserting without a guard would add a fresh row on every replay, duplicating the
+      // action (the audit found action ids 405+406 sharing one created_tx). Keyed on
+      // created_tx — a create runs in exactly one on-chain tx, so a matching row means we
+      // already indexed it. The update path (action_id > 0) is already an idempotent
+      // upsert by id.
       const existing = await db.actions.count({ created_tx: payload.transactionId })
       if (Number(existing) > 0) return
+
+      // The DB action.id MUST equal the chain action id — the frontend signs
+      // upsertaction(action_id = db id) against the chain, and claimaction carries the
+      // action_id too, so a drifted serial makes the action un-editable and its claims
+      // point at the wrong row. The create payload carries action_id = 0 (the contract
+      // generates the id), so historically the DB serial assigned it, which drifts from
+      // the chain counter after any duplicate/extra insert. Recover the real id from
+      // chain: the smallest on-chain id this objective has that we don't have yet is
+      // this create (blocks are processed in order).
+      //
+      // Resolved HERE, before db.withTransaction below — a chain HTTP round-trip inside
+      // the transaction would hold a DB connection open for its whole duration
+      // (claimAction resolves before its insert for the same reason).
+      //
+      // On any failure (chain unreachable, no missing id) we fall back to the serial
+      // rather than throw — a throw here becomes an unhandledRejection → process exit →
+      // pm2 crash-loop. The serial was realigned to the chain counter by the 2026-07-02
+      // remediation, so the fallback stays correct unless a new drift is introduced; the
+      // explicit-id path is what keeps that drift from re-opening.
+      try {
+        const known = await db.actions.find(
+          { objective_id: payload.data.objective_id },
+          { fields: ['id'] }
+        )
+        data.id = await resolveCreatedActionId(
+          config.blockchain.contract.community,
+          payload.data.objective_id,
+          new Set(known.map(a => Number(a.id)))
+        )
+      } catch (e) {
+        logError('Could not resolve chain action id, falling back to serial', e)
+        delete data.id
+      }
     }
 
     return db.withTransaction(tx => {
-      return tx.actions.save(data).then(savedAction => {
+      // Create path uses insert(), not save(): with an explicit id present save()
+      // emits an UPDATE (matching nothing for a new id); insert() honors the id, and
+      // without one the serial assigns it. The update path keeps save()'s upsert-by-id.
+      const writeAction =
+        payload.data.action_id > 0 ? tx.actions.save(data) : tx.actions.insert(data)
+
+      return writeAction.then(savedAction => {
         // On update, replace the validator set: delete the old rows then
         // re-insert from validators_str. Both the delete and the inserts run
         // inside `tx` and are awaited, so the transaction commits only after
