@@ -142,7 +142,11 @@ class GetActionsReader extends AbstractActionReader {
           payload: {
             ...act,
             transactionId: action.action_trace.trx_id,
-            actionIndex: action.account_action_seq
+            actionIndex: action.account_action_seq,
+            // Globally unique across contracts (account_action_seq is per contract and
+            // collides between cambiatus.cm and cambiatus.tk). Key of the persistent
+            // _processed_actions ledger — see updaters.js.
+            globalSequence: action.global_action_seq
           }
         })
 
