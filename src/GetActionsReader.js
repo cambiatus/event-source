@@ -129,6 +129,16 @@ class GetActionsReader extends AbstractActionReader {
       const result = await this._fetchActions(contract, this.seqPositions[contract], BATCH_SIZE)
       if (!result.actions || result.actions.length === 0) continue
 
+      // Seq-continuity guard: get_actions returns from `pos` forward, so the first row's
+      // account_action_seq MUST equal what we asked for. A higher value means the history
+      // node skipped sequences (a hole) — the actions in the gap would be silently lost.
+      // Surface it loudly (Sentry via console.error) instead of discovering it later as a
+      // stuck claim; we still process what we got.
+      const firstSeq = result.actions[0].account_action_seq
+      if (firstSeq > this.seqPositions[contract]) {
+        console.error(`GetActionsReader: HISTORY GAP for ${contract} — expected seq ${this.seqPositions[contract]}, got ${firstSeq} (skipped ${firstSeq - this.seqPositions[contract]} action(s))`)
+      }
+
       for (const action of result.actions) {
         const act = action.action_trace.act
         if (act.account !== contract) continue
