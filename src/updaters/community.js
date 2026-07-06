@@ -598,71 +598,97 @@ async function claimAction (db, payload, blockInfo, context) {
 async function verifyClaim (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Claim Verification`, blockInfo.blockNumber)
 
-  const checkData = {
-    claim_id: payload.data.claim_id,
-    validator_id: payload.data.verifier,
-    is_verified: payload.data.vote === 1,
-    created_block: blockInfo.blockNumber,
-    created_tx: payload.transactionId,
-    created_eos_account: payload.authorization[0].actor,
-    created_at: blockInfo.timestamp
+  // Write directly on the block-level `db` (demux's serializable transaction), NOT a nested
+  // db.withTransaction. The nested tx committed on a SEPARATE connection, so an error in it
+  // would roll back these writes while the outer block still committed the _processed_actions
+  // ledger row that claims this global_seq — marking the vote permanently "done". On the block
+  // tx, writes and the ledger claim commit or roll back together.
+
+  // Resolve the claim and action FIRST, before touching `checks`. `claimaction` is always an
+  // earlier block than its `verifyclaim`, so it has already been processed and committed: at
+  // this point the claim is either present or PERMANENTLY absent (chain<->DB id drift, or a
+  // claimaction that was itself skipped upstream). A missing claim therefore never "lands on
+  // retry" — throwing would just deterministically crash-loop the whole indexer under pm2 and
+  // halt every community. Skip-and-log instead (same pattern as assignRole / upsertAction);
+  // the status recompute is self-healing, so once the drift is remediated a reprocess of this
+  // action converges the claim. Doing this before the INSERT also avoids the checks.claim_id
+  // FK violation a missing claim would otherwise raise.
+  const claim = await db.claims.findOne(payload.data.claim_id)
+  if (claim == null) {
+    logError('verifyClaim: claim not found, skipping vote (DB behind/drifted vs chain)',
+      new Error(`claim_id=${payload.data.claim_id} verifier=${payload.data.verifier} block=${blockInfo.blockNumber}`))
+    return
   }
 
-  return db.withTransaction(async tx => {
-    // Idempotency: the contract enforces exactly one vote per validator per claim, so a
-    // replay must not insert a second check — doing so would inflate the vote counts below
-    // and flip the claim to a wrong status. Keyed on (claim_id, validator_id): if this
-    // validator already voted on this claim, skip the insert but still recompute the status.
-    const alreadyVoted = Number(await tx.checks.count({
-      claim_id: payload.data.claim_id,
-      validator_id: payload.data.verifier
-    }))
-    if (alreadyVoted === 0) {
-      await tx.checks.insert(checkData)
-    }
+  const action = await db.actions.findOne(claim.action_id)
+  if (action == null) {
+    logError('verifyClaim: action not found, skipping vote (DB behind/drifted vs chain)',
+      new Error(`claim_id=${claim.id} action_id=${claim.action_id} block=${blockInfo.blockNumber}`))
+    return
+  }
 
-    const claim = await tx.claims.findOne(payload.data.claim_id)
-    console.log(`Cambiatus >>> Claim Verification: starting updating claims with id #${payload.data.claim_id}`)
+  // Same guard for the verifier: checks.validator_id is an FK to users(account), so a verifier
+  // not yet in the DB would make the INSERT below throw and crash-loop the indexer. A validator
+  // is a community member, so netlink should already have created the user — skip-and-log if not.
+  const verifier = await db.users.findOne({ account: payload.data.verifier })
+  if (verifier == null) {
+    logError('verifyClaim: verifier user not found, skipping vote (DB behind/drifted vs chain)',
+      new Error(`verifier=${payload.data.verifier} claim_id=${claim.id} block=${blockInfo.blockNumber}`))
+    return
+  }
 
-    if (claim === null) {
-      throw new Error('claim not available')
-    }
+  console.log(`Cambiatus >>> Claim Verification: starting updating claims with id #${payload.data.claim_id}`)
 
-    const action = await tx.actions.findOne(claim.action_id)
-    if (action === null) {
-      throw new Error('action not available')
-    }
+  // Idempotent insert on the checks (claim_id, validator_id) unique index: the contract
+  // enforces one vote per validator per claim, so a replay must not insert a second check (it
+  // would inflate the counts below and flip the status). ON CONFLICT DO NOTHING makes this a
+  // pure DB-level no-op with no count-then-insert race — and, since no row is inserted on
+  // conflict, the check_added AFTER-INSERT trigger does not re-fire its notification on replay.
+  await db.instance.none(
+    `INSERT INTO checks
+       (claim_id, validator_id, is_verified, created_block, created_tx, created_eos_account, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (claim_id, validator_id) DO NOTHING`,
+    [
+      payload.data.claim_id,
+      payload.data.verifier,
+      payload.data.vote === 1,
+      blockInfo.blockNumber,
+      payload.transactionId,
+      payload.authorization[0].actor,
+      blockInfo.timestamp
+    ]
+  )
 
-    // Recompute the status as a pure function of the CURRENT checks for this claim (not an
-    // increment), matching the contract's verifyclaim math byte-for-byte. Because it derives
-    // purely from the persisted checks it is self-healing: any future reprocess converges the
-    // ~6,700 claims stuck `rejected` in Postgres back to their true on-chain status.
-    const positiveVotes = Number(await tx.checks.count({ claim_id: claim.id, is_verified: true }))
-    console.log(`Cambiatus >>> Claim Verification: Positive votes: ${positiveVotes}`)
+  // Recompute the status as a pure function of the CURRENT checks for this claim (not an
+  // increment), matching the contract's verifyclaim math byte-for-byte. Because it derives
+  // purely from the persisted checks it is self-healing: any future reprocess converges a
+  // claim stuck at the wrong status in Postgres back to its true on-chain status.
+  const positiveVotes = Number(await db.checks.count({ claim_id: claim.id, is_verified: true }))
+  console.log(`Cambiatus >>> Claim Verification: Positive votes: ${positiveVotes}`)
 
-    const negativeVotes = Number(await tx.checks.count({ claim_id: claim.id, is_verified: false }))
-    console.log(`Cambiatus >>> Claim Verification: Negative votes: ${negativeVotes}`)
+  const negativeVotes = Number(await db.checks.count({ claim_id: claim.id, is_verified: false }))
+  console.log(`Cambiatus >>> Claim Verification: Negative votes: ${negativeVotes}`)
 
-    const majority = (action.verifications >> 1) + (action.verifications & 1)
+  const majority = (action.verifications >> 1) + (action.verifications & 1)
 
-    let status = 'pending'
-    if (positiveVotes >= majority || negativeVotes >= majority) {
-      status = positiveVotes > negativeVotes ? 'approved' : 'rejected'
-    }
+  let status = 'pending'
+  if (positiveVotes >= majority || negativeVotes >= majority) {
+    status = positiveVotes > negativeVotes ? 'approved' : 'rejected'
+  }
 
-    await tx.claims.update(claim.id, { status: status })
-    console.log(`Cambiatus >>> Claim Verification: Status Updated to: ${status}`)
+  await db.claims.update(claim.id, { status })
+  console.log(`Cambiatus >>> Claim Verification: Status Updated to: ${status}`)
 
-    // Decrement usages_left exactly once, on the first pending -> resolved transition. On a
-    // replay the claim's stored status is already resolved, so this is skipped and we never
-    // double-decrement. Preserves the contract's `!is_completed && usages > 0` conditions.
-    if (claim.status === 'pending' && status !== 'pending' && !action.is_completed && action.usages > 0) {
-      await tx.actions.update(action.id, {
-        usages_left: action.usages_left - 1,
-        is_completed: (action.usages_left - 1) === 0
-      })
-    }
-  }).catch(e => logError('Something went wrong while inserting a check', e))
+  // Decrement usages_left exactly once, on the first pending -> resolved transition. On a
+  // replay the claim's stored status is already resolved, so this is skipped and we never
+  // double-decrement. Preserves the contract's `!is_completed && usages > 0` conditions.
+  if (claim.status === 'pending' && status !== 'pending' && !action.is_completed && action.usages > 0 && action.usages_left > 0) {
+    await db.actions.update(action.id, {
+      usages_left: action.usages_left - 1,
+      is_completed: (action.usages_left - 1) === 0
+    })
+  }
 }
 
 async function upsertRole (db, payload, blockInfo, _context) {
