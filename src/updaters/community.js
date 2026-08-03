@@ -226,37 +226,54 @@ function transferSale (db, payload, blockInfo, context) {
     }
 
     // Find sale
-    return tx.products.findOne(whereArg).then(sale => {
-      if (sale === null) {
-        throw new Error('No sale data available')
+    const sale = await tx.products.findOne(whereArg)
+    if (sale === null) {
+      throw new Error('No sale data available')
+    }
+
+    if (sale.track_stock) {
+      const newUnits = sale.units - parseInt(payload.data.units)
+
+      // Update sale units
+      const updateData = {
+        units: (newUnits <= 0) ? 0 : newUnits
       }
 
-      if (sale.track_stock) {
-        const newUnits = sale.units - parseInt(payload.data.units)
+      await tx.products.update(whereArg, updateData)
+    }
 
-        // Update sale units
-        const updateData = {
-          units: (newUnits <= 0) ? 0 : newUnits
-        }
+    // Insert new order
+    const insertData = {
+      product_id: sale.id,
+      from_id: payload.data.from,
+      to_id: payload.data.to,
+      amount: amount,
+      units: payload.data.units,
+      community_id: symbol,
+      status: 'completed',
+      origin: 'chain_legacy',
+      total_token: amount,
+      created_block: blockInfo.blockNumber,
+      created_tx: payload.transactionId,
+      created_at: blockInfo.timestamp,
+      created_eos_account: payload.authorization[0].actor,
+      inserted_at: blockInfo.timestamp,
+      updated_at: blockInfo.timestamp
+    }
 
-        tx.products.update(whereArg, updateData)
-      }
+    const order = await tx.orders.insert(insertData)
 
-      // Insert new order
-      const insertData = {
-        product_id: sale.id,
-        from_id: payload.data.from,
-        to_id: payload.data.to,
-        amount: amount,
-        units: payload.data.units,
-        community_id: symbol,
-        created_block: blockInfo.blockNumber,
-        created_tx: payload.transactionId,
-        created_at: blockInfo.timestamp,
-        created_eos_account: payload.authorization[0].actor
-      }
-
-      tx.orders.insert(insertData)
+    // Write the matching line item. Kept inside the same guarded path so a
+    // replay that hits orders_dedup_idx above never reaches this insert.
+    const quantity = parseInt(payload.data.units) || 1
+    await tx.order_items.insert({
+      order_id: order.id,
+      product_id: sale.id,
+      quantity: quantity,
+      unit_price_token: amount / Math.max(quantity, 1),
+      title_snapshot: sale.title,
+      inserted_at: blockInfo.timestamp,
+      updated_at: blockInfo.timestamp
     })
   }
 
