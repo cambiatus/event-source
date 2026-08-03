@@ -239,7 +239,7 @@ function transferSale (db, payload, blockInfo, context) {
         units: (newUnits <= 0) ? 0 : newUnits
       }
 
-      tx.products.update(whereArg, updateData)
+      await tx.products.update(whereArg, updateData)
     }
 
     // Insert new order
