@@ -11,7 +11,13 @@ const effects = []
 const http = require('http')
 
 async function init () {
-  const contracts = [config.blockchain.contract.community, config.blockchain.contract.token]
+  // filter(Boolean): a contract left unconfigured is simply not polled, rather than
+  // becoming an `undefined` account the reader hammers every 500ms.
+  const contracts = [
+    config.blockchain.contract.community,
+    config.blockchain.contract.token,
+    config.blockchain.contract.escrow
+  ].filter(Boolean)
   const actionReader = new GetActionsReader(
     config.blockchain.url,
     contracts,

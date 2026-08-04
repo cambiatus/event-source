@@ -8,7 +8,10 @@ module.exports = {
   blockchain: {
     contract: {
       token: process.env.BLOCKCHAIN_TOKEN_CONTRACT,
-      community: process.env.BLOCKCHAIN_COMMUNITY_CONTRACT
+      community: process.env.BLOCKCHAIN_COMMUNITY_CONTRACT,
+      // Defaulted, unlike the others: this one is new, so an unset env var on a box
+      // that predates it must not turn into a poll loop against `undefined`.
+      escrow: process.env.BLOCKCHAIN_ESCROW_CONTRACT || 'cambiatus.es'
     },
     url: process.env.BLOCKCHAIN_URL,
     initialBlock: initialBlock

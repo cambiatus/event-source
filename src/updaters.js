@@ -21,6 +21,12 @@ const {
   setExpiry,
   initacc
 } = require('./updaters/token.js')
+const {
+  regDeposit,
+  release,
+  refund,
+  sweep
+} = require('./updaters/escrow.js')
 
 // Persistent replay guard around every updater, keyed on the action's
 // global_action_seq (set by GetActionsReader; unique across contracts). The INSERT
@@ -130,6 +136,23 @@ const updaters = [
   {
     actionType: `${config.blockchain.contract.token}::initacc`,
     updater: initacc
+  },
+  // ======== Escrow
+  {
+    actionType: `${config.blockchain.contract.escrow}::regdeposit`,
+    updater: regDeposit
+  },
+  {
+    actionType: `${config.blockchain.contract.escrow}::release`,
+    updater: release
+  },
+  {
+    actionType: `${config.blockchain.contract.escrow}::refund`,
+    updater: refund
+  },
+  {
+    actionType: `${config.blockchain.contract.escrow}::sweep`,
+    updater: sweep
   }
 ]
 
