@@ -3,7 +3,8 @@ module.exports = {
   blockchain: {
     contract: {
       token: 'cambiatus.tk',
-      community: 'cambiatus.cm'
+      community: 'cambiatus.cm',
+      escrow: 'cambiatus.es'
     },
     initialBlock: 1,
     // initialBlock: 3580

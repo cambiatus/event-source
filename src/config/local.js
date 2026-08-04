@@ -6,7 +6,8 @@ module.exports = {
   blockchain: {
     contract: {
       token: 'cambiatus.tk',
-      community: 'cambiatus.cm'
+      community: 'cambiatus.cm',
+      escrow: 'cambiatus.es'
     },
     initialBlock: 1,
     url: 'http://127.0.0.1:8888'
