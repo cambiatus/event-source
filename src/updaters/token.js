@@ -1,5 +1,6 @@
 const { logError } = require('../logging')
 const { parseToken, getSymbolFromAsset } = require('../eos_helper')
+const { toUTC } = require('../dates')
 
 function createToken (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> Create Token`)
@@ -49,7 +50,7 @@ async function transfer (db, payload, blockInfo, context) {
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
-    created_at: blockInfo.timestamp
+    created_at: toUTC(blockInfo.timestamp)
   }
 
   // Idempotency: a re-indexed block must not duplicate this row. amount + memo are
@@ -90,7 +91,7 @@ async function issue (db, payload, blockInfo, context) {
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
-    created_at: blockInfo.timestamp
+    created_at: toUTC(blockInfo.timestamp)
   }
 
   // Idempotency: a re-indexed block must not duplicate this mint. quantity + memo are

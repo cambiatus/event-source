@@ -5,6 +5,7 @@ const {
 } = require('../eos_helper')
 const config = require(`../config/${process.env.NODE_ENV || 'dev'}`)
 const { resolveClaimId, resolveCreatedActionId, resolveCreatedObjectiveId } = require('../chain')
+const { toUTC } = require('../dates')
 
 async function createCommunity (db, payload, blockInfo) {
   console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
@@ -22,7 +23,7 @@ async function createCommunity (db, payload, blockInfo) {
     const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
     const subdomainId = await (async () => {
       if (subdomains.length === 0) {
-        const newSubdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+        const newSubdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: toUTC(new Date()), updated_at: toUTC(new Date()) })
         return newSubdomain.id
       } else {
         console.log('Trying to create a new community with a subdomain, skipping')
@@ -47,7 +48,7 @@ async function createCommunity (db, payload, blockInfo) {
       created_block: blockInfo.blockNumber,
       created_tx: payload.transactionId,
       created_eos_account: payload.authorization[0].actor,
-      created_at: blockInfo.timestamp
+      created_at: toUTC(blockInfo.timestamp)
     }
 
     // create community
@@ -58,8 +59,8 @@ async function createCommunity (db, payload, blockInfo) {
       name: 'member',
       permissions: '{"invite", "claim", "order", "sell", "transfer"}',
       created_tx: payload.transactionId,
-      inserted_at: new Date(),
-      updated_at: new Date()
+      inserted_at: toUTC(new Date()),
+      updated_at: toUTC(new Date())
     }
 
     const role = await tx.roles.insert(roleData)
@@ -71,7 +72,7 @@ async function createCommunity (db, payload, blockInfo) {
       created_block: blockInfo.blockNumber,
       created_tx: payload.transactionId,
       created_eos_account: payload.authorization[0].actor,
-      created_at: blockInfo.timestamp
+      created_at: toUTC(blockInfo.timestamp)
     }
 
     const network = await tx.network.insert(networkData)
@@ -80,8 +81,8 @@ async function createCommunity (db, payload, blockInfo) {
       network_id: network.id,
       role_id: role.id,
       created_tx: payload.transactionId,
-      inserted_at: new Date(),
-      updated_at: new Date()
+      inserted_at: toUTC(new Date()),
+      updated_at: toUTC(new Date())
     }
 
     await tx.network_roles.insert(networkRoleData)
@@ -105,7 +106,7 @@ async function updateCommunity (db, payload, blockInfo, context) {
     const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
     const subdomain = await (async () => {
       if (subdomains.length === 0) {
-        return tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+        return tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: toUTC(new Date()), updated_at: toUTC(new Date()) })
       } else {
         return subdomains[0]
       }
@@ -162,7 +163,7 @@ async function netlink (db, payload, blockInfo, context) {
       blockInfo.blockNumber,
       payload.transactionId,
       payload.authorization[0].actor,
-      blockInfo.timestamp
+      toUTC(blockInfo.timestamp)
     ]
   )
 
@@ -181,7 +182,7 @@ async function netlink (db, payload, blockInfo, context) {
       blockInfo.blockNumber,
       payload.transactionId,
       payload.authorization[0].actor,
-      blockInfo.timestamp
+      toUTC(blockInfo.timestamp)
     ]
   )
 
@@ -195,8 +196,8 @@ async function netlink (db, payload, blockInfo, context) {
     network_id: network.id,
     role_id: role.id,
     created_tx: payload.transactionId,
-    inserted_at: new Date(),
-    updated_at: new Date()
+    inserted_at: toUTC(new Date()),
+    updated_at: toUTC(new Date())
   })
 }
 
@@ -255,10 +256,10 @@ async function transferSale (db, payload, blockInfo, context) {
       total_token: amount,
       created_block: blockInfo.blockNumber,
       created_tx: payload.transactionId,
-      created_at: blockInfo.timestamp,
+      created_at: toUTC(blockInfo.timestamp),
       created_eos_account: payload.authorization[0].actor,
-      inserted_at: blockInfo.timestamp,
-      updated_at: blockInfo.timestamp
+      inserted_at: toUTC(blockInfo.timestamp),
+      updated_at: toUTC(blockInfo.timestamp)
     }
 
     const order = await tx.orders.insert(insertData)
@@ -272,8 +273,8 @@ async function transferSale (db, payload, blockInfo, context) {
       quantity: quantity,
       unit_price_token: amount / Math.max(quantity, 1),
       title_snapshot: sale.title,
-      inserted_at: blockInfo.timestamp,
-      updated_at: blockInfo.timestamp
+      inserted_at: toUTC(blockInfo.timestamp),
+      updated_at: toUTC(blockInfo.timestamp)
     })
   }
 
@@ -296,7 +297,7 @@ async function upsertObjective (db, payload, blockInfo, _context) {
     description: payload.data.description,
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
-    created_at: blockInfo.timestamp,
+    created_at: toUTC(blockInfo.timestamp),
     created_eos_account: payload.authorization[0].actor
   }
 
@@ -385,10 +386,10 @@ function upsertAction (db, payload, blockInfo, _context) {
       usages_left: payload.data.usages,
       verifications: payload.data.verifications,
       verification_type: payload.data.verification_type,
-      deadline: payload.data.deadline > 0 ? deadlineDateTime : null,
+      deadline: payload.data.deadline > 0 ? toUTC(deadlineDateTime) : null,
       created_block: blockInfo.blockNumber,
       created_tx: payload.transactionId,
-      created_at: blockInfo.timestamp,
+      created_at: toUTC(blockInfo.timestamp),
       created_eos_account: payload.authorization[0].actor,
       has_proof_photo: payload.data.has_proof_photo === 1,
       has_proof_code: payload.data.has_proof_code === 1,
@@ -478,7 +479,7 @@ function upsertAction (db, payload, blockInfo, _context) {
                 created_block: blockInfo.blockNumber,
                 created_tx: payload.transactionId,
                 created_eos_account: payload.authorization[0].actor,
-                created_at: blockInfo.timestamp
+                created_at: toUTC(blockInfo.timestamp)
               })
             )
           )
@@ -545,8 +546,8 @@ async function reward (db, payload, blockInfo, context) {
         receiver_id: payload.data.receiver,
         awarder_id: payload.data.awarder,
         created_tx: payload.transactionId,
-        inserted_at: new Date(),
-        updated_at: new Date()
+        inserted_at: toUTC(new Date()),
+        updated_at: toUTC(new Date())
       }
 
       db.rewards.save(data)
@@ -607,7 +608,7 @@ async function claimAction (db, payload, blockInfo, context) {
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
-    created_at: blockInfo.timestamp,
+    created_at: toUTC(blockInfo.timestamp),
     proof_photo: payload.data.proof_photo === '' ? null : payload.data.proof_photo,
     proof_code: payload.data.proof_code === '' ? null : payload.data.proof_code
   }
@@ -678,7 +679,7 @@ async function verifyClaim (db, payload, blockInfo, context) {
       blockInfo.blockNumber,
       payload.transactionId,
       payload.authorization[0].actor,
-      blockInfo.timestamp
+      toUTC(blockInfo.timestamp)
     ]
   )
 
@@ -722,8 +723,8 @@ async function upsertRole (db, payload, blockInfo, _context) {
     color: payload.data.color,
     permissions: '{' + payload.data.permissions.map(p => `"${p}"`).join(', ') + '}',
     created_tx: payload.transactionId,
-    inserted_at: new Date(),
-    updated_at: new Date()
+    inserted_at: toUTC(new Date()),
+    updated_at: toUTC(new Date())
   }
 
   try {
@@ -795,8 +796,8 @@ async function assignRole (db, payload, blockInfo, _context) {
       network_id: foundNetwork.id,
       role_id: roleId,
       created_tx: payload.transactionId,
-      inserted_at: new Date(),
-      updated_at: new Date()
+      inserted_at: toUTC(new Date()),
+      updated_at: toUTC(new Date())
     })
   }
 }
