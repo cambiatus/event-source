@@ -307,16 +307,17 @@ async function upsertObjective (db, payload, blockInfo, _context) {
   let data = {
     community_id: payload.data.community_id,
     creator_id: payload.data.editor,
-    description: payload.data.description,
-    created_block: blockInfo.blockNumber,
-    created_tx: payload.transactionId,
-    created_at: blockInfo.timestamp,
-    created_eos_account: payload.authorization[0].actor
+    description: payload.data.description
   }
 
   if (payload.data.objective_id > 0) {
     // Update path: an idempotent upsert by id (massive's save() emits an UPDATE
-    // when the pk is present).
+    // when the pk is present). It must NOT touch the created_* provenance: the
+    // create-path replay guard below keys on created_tx, so rewriting it on edit
+    // would make a later replay re-execute the create (duplicate row / pkey
+    // crash). The 20260702120000 migration comment documents the old rewrite
+    // only to explain why no unique index on created_tx was added — it is not a
+    // rationale for keeping it.
     data = Object.assign(data, { id: payload.data.objective_id })
     return db.objectives
       .save(data)
@@ -324,6 +325,15 @@ async function upsertObjective (db, payload, blockInfo, _context) {
         logError('Something went wrong while updating objective', e)
       )
   }
+
+  // Create-path provenance — written once, on the create, and never rewritten
+  // by edits, so the replay guard below keeps recognizing this create.
+  data = Object.assign(data, {
+    created_block: blockInfo.blockNumber,
+    created_tx: payload.transactionId,
+    created_at: blockInfo.timestamp,
+    created_eos_account: payload.authorization[0].actor
+  })
 
   // Idempotency (create path only): with no objective_id the payload carries no key, so
   // inserting without a guard would add a fresh row on every replay, duplicating the
@@ -400,10 +410,6 @@ function upsertAction (db, payload, blockInfo, _context) {
       verifications: payload.data.verifications,
       verification_type: payload.data.verification_type,
       deadline: payload.data.deadline > 0 ? deadlineDateTime : null,
-      created_block: blockInfo.blockNumber,
-      created_tx: payload.transactionId,
-      created_at: blockInfo.timestamp,
-      created_eos_account: payload.authorization[0].actor,
       has_proof_photo: payload.data.has_proof_photo === 1,
       has_proof_code: payload.data.has_proof_code === 1,
       photo_proof_instructions: payload.data.photo_proof_instructions === '' ? null : payload.data.photo_proof_instructions,
@@ -411,13 +417,26 @@ function upsertAction (db, payload, blockInfo, _context) {
     }
 
     if (payload.data.action_id > 0) {
-      // Update
+      // Update — deliberately does NOT touch the created_* provenance: the
+      // create-path replay guard below keys on created_tx, so rewriting it on
+      // edit would make a later replay re-execute the create (duplicate row /
+      // pkey crash). See upsertObjective for the full rationale.
       data = Object.assign(data, {
         id: payload.data.action_id,
         usages_left: payload.data.usages_left,
         is_completed: payload.data.is_completed === 1
       })
     } else {
+      // Create-path provenance — written once, on the create, and never
+      // rewritten by edits, so the replay guard below keeps recognizing this
+      // create.
+      data = Object.assign(data, {
+        created_block: blockInfo.blockNumber,
+        created_tx: payload.transactionId,
+        created_at: blockInfo.timestamp,
+        created_eos_account: payload.authorization[0].actor
+      })
+
       // Idempotency (create path only): with no action_id the payload carries no key, so
       // inserting without a guard would add a fresh row on every replay, duplicating the
       // action (the audit found action ids 405+406 sharing one created_tx). Keyed on
