@@ -200,7 +200,7 @@ async function netlink (db, payload, blockInfo, context) {
   })
 }
 
-function transferSale (db, payload, blockInfo, context) {
+async function transferSale (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> New Transfer Sale`, blockInfo.blockNumber)
 
   const transaction = async tx => {
@@ -277,7 +277,12 @@ function transferSale (db, payload, blockInfo, context) {
     })
   }
 
-  db.withTransaction(transaction).catch(e =>
+  // Return the transaction so ledgered() can await it. Without the return the updater
+  // was fire-and-forget: the block transaction could commit (claiming the action's
+  // global_seq in _processed_actions) while this inner work was still running, and a
+  // failure there would then be skipped by every future reindex — the "claimed ledger
+  // row without applied writes" mode the reindex runbook warns about.
+  return db.withTransaction(transaction).catch(e =>
     logError('Something went wrong while transferring sale', e)
   )
 }
