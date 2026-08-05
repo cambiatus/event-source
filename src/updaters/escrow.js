@@ -8,8 +8,9 @@ const { parseToken, getSymbolFromAsset } = require('../eos_helper')
 // action is attributable on its own, with no mirrored state to rebuild on a reindex.
 //
 // Every updater here is wrapped by `ledgered()` in updaters.js, which claims the action's
-// global_seq inside the block transaction. The ON CONFLICT / `status = 'open'` guards are
-// the second layer, covering history processed before that ledger existed.
+// global_seq inside the block transaction. The per-updater guards below are the second
+// layer, keyed on the same per-action identity (payload.globalSequence), covering history
+// processed before that ledger existed or after it is truncated.
 
 async function regDeposit (db, payload, blockInfo, context) {
   console.log('Cambiatus >>> New Escrow Deposit')
@@ -19,12 +20,33 @@ async function regDeposit (db, payload, blockInfo, context) {
 
   // Timestamps come from the block, not from the clock, so re-indexing an action
   // reproduces the same row instead of a differently-stamped one.
+  //
+  // The conflict target is explicit and per-action: created_global_seq is the action's
+  // global_action_seq (unique across contracts, the same key the _processed_actions
+  // ledger claims), backed by a unique index. A replayed regdeposit collapses onto the
+  // row it already wrote — even when that row has since closed, which the partial
+  // open-order_ref index cannot catch — while a legitimate second deposit on a reused
+  // ref (regdeposit → release → regdeposit in one transaction) has a different seq and
+  // lands normally. Keying on (created_tx, order_ref) instead would silently drop that
+  // second deposit: the pair repeats within the shared transaction.
+  //
+  // The NOT EXISTS preserves the old blanket ON CONFLICT's one useful behavior:
+  // skipping the insert when an open row already exists for the ref, instead of
+  // turning the partial-index violation into an updater crash. It is what covers rows
+  // indexed before created_global_seq existed (their seq is NULL, so the conflict
+  // target can't match them) — but only while they are still open. A replay against a
+  // legacy CLOSED row still can't be told apart from a new deposit locally; such rows
+  // must have created_global_seq backfilled (or be rebuilt) before a full reindex.
   await db.instance.none(
     `INSERT INTO escrow_deposits
        (order_ref, community_id, buyer_id, seller_id, arbiter_id, amount, status,
-        created_tx, created_block, created_at, inserted_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, 'open', $7, $8, $9, $9, $9)
-     ON CONFLICT DO NOTHING`,
+        created_tx, created_block, created_at, created_global_seq,
+        inserted_at, updated_at)
+     SELECT $1, $2, $3, $4, $5, $6, 'open', $7, $8, $9, $10, $9, $9
+     WHERE NOT EXISTS (
+       SELECT 1 FROM escrow_deposits WHERE order_ref = $1 AND status = 'open'
+     )
+     ON CONFLICT (created_global_seq) DO NOTHING`,
     [
       payload.data.order_ref,
       communityId,
@@ -34,7 +56,8 @@ async function regDeposit (db, payload, blockInfo, context) {
       amount,
       payload.transactionId,
       blockInfo.blockNumber,
-      blockInfo.timestamp
+      blockInfo.timestamp,
+      payload.globalSequence
     ]
   )
 }
@@ -49,10 +72,15 @@ async function refund (db, payload, blockInfo, context) {
   return closeDeposit(db, payload, blockInfo, 'refunded')
 }
 
-// Closes the OPEN deposit for this order_ref. Scoping the UPDATE to `status = 'open'`
-// makes a replay a no-op and stops a later deposit on a reused ref from being closed by
-// an old action. No open row means we never saw the regdeposit (or already closed it):
-// skip and log rather than throwing, so one unindexed deposit can't wedge the block.
+// Closes the deposit this action actually closed. `status = 'open'` alone is not enough:
+// it matches whichever row is CURRENTLY open, so a replayed close (after a ledger
+// truncation or DB restore) would close a NEWER deposit on the reused ref with the old
+// action's closed_tx/closed_by. Bounding by `created_block <= this action's block` keeps
+// the match to deposits that already existed when the close happened — a later deposit
+// on the same ref is untouched, and a replay against the original (now closed) row finds
+// no open match, making the replay a no-op. No match means we never saw the regdeposit
+// (or already closed it): skip and log rather than throwing, so one unindexed deposit
+// can't wedge the block.
 async function closeDeposit (db, payload, blockInfo, status) {
   const orderRef = payload.data.order_ref
 
@@ -60,7 +88,7 @@ async function closeDeposit (db, payload, blockInfo, status) {
     `UPDATE escrow_deposits
         SET status = $1, closed_tx = $2, closed_block = $3, closed_at = $4,
             closed_by = $5, updated_at = $4
-      WHERE order_ref = $6 AND status = 'open'
+      WHERE order_ref = $6 AND status = 'open' AND created_block <= $7
       RETURNING id`,
     [
       status,
@@ -68,7 +96,8 @@ async function closeDeposit (db, payload, blockInfo, status) {
       blockInfo.blockNumber,
       blockInfo.timestamp,
       payload.authorization[0].actor,
-      orderRef
+      orderRef,
+      blockInfo.blockNumber
     ]
   )
 
