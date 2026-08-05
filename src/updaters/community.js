@@ -53,6 +53,25 @@ async function createCommunity (db, payload, blockInfo) {
     // create community
     await tx.communities.insert(communityData)
 
+    // The creator's network row (below) FK-references users(account), so the creator
+    // MUST exist in users first. On a from-genesis index of a fresh DB nobody else has
+    // created that row (prod historically relied on backend sign-ups pre-populating
+    // users), the network insert violated network_account_id_fkey, and the swallowed
+    // rollback left the community missing entirely — the next netlink then crash-looped
+    // the process. Same idempotent upsert as netlink (relies on the users(account) PK).
+    await tx.instance.none(
+      `INSERT INTO users (account, created_block, created_tx, created_eos_account, created_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT DO NOTHING`,
+      [
+        payload.data.creator,
+        blockInfo.blockNumber,
+        payload.transactionId,
+        payload.authorization[0].actor,
+        blockInfo.timestamp
+      ]
+    )
+
     const roleData = {
       community_id: symbol,
       name: 'member',
