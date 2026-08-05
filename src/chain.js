@@ -29,11 +29,32 @@ function post (path, body) {
   })
 }
 
+// Thrown when a chain id cannot be resolved. Distinct type so the `ledgered`
+// wrapper (updaters.js) can tell "skip this action and leave it unprocessed"
+// apart from a bug that should still crash the indexer.
+class ResolveError extends Error {}
+
+// Do NOT trust `res.more` from get_table_rows on a bounded secondary-index
+// query: on nodeos v2.0.x (prod runs v2.0.7) `more` is true whenever the index
+// iterator stopped anywhere short of end-of-index — i.e. whenever ANY row with
+// a higher key exists — even though the bounds filtered correctly (verified
+// against prod 2026-08-05: a query bounded to action 389 returned only that
+// action's 22 rows, yet `more: true`). Treating it as truncation made every
+// resolve throw, and the caller's serial fallback then wrote drifted claim ids
+// (the live claim-id drift this module exists to prevent). The only reliable
+// truncation signal on these nodeos versions is hitting the requested limit.
+function assertComplete (res, limit, table, context) {
+  if (!res || !Array.isArray(res.rows)) throw new Error(`get_table_rows(${table}) returned no rows ${context}`)
+  if (res.rows.length >= limit) throw new Error(`too many ${table} rows ${context} (${res.rows.length} >= limit ${limit}) to page safely`)
+}
+
 // Fetch every on-chain claim for a single action via the `byaction` secondary
-// index (index_position 2). An action realistically has far fewer than the limit;
-// if the node still reports more, throw so we never compute an ordinal off a
-// truncated set (fail-safe — the block retries).
-async function claimsForAction (communityContract, actionId) {
+// index (index_position 2). An action realistically has far fewer than the
+// limit; if the limit is ever hit, throw so we never compute an ordinal off a
+// truncated set (fail-safe — the claim is skipped and left unprocessed for a
+// later pass; see claimAction). `limit` is a parameter only so acceptance
+// tests can exercise the truncation guard without writing 5000 chain rows.
+async function claimsForAction (communityContract, actionId, limit = 5000) {
   const res = await post('/v1/chain/get_table_rows', {
     json: true,
     code: communityContract,
@@ -43,10 +64,9 @@ async function claimsForAction (communityContract, actionId) {
     key_type: 'i64',
     lower_bound: actionId,
     upper_bound: actionId,
-    limit: 5000
+    limit
   })
-  if (!res || !Array.isArray(res.rows)) throw new Error(`get_table_rows(claim) returned no rows for action ${actionId}`)
-  if (res.more) throw new Error(`too many claims for action ${actionId} to page safely`)
+  assertComplete(res, limit, 'claim', `for action ${actionId}`)
   return res.rows
 }
 
@@ -58,8 +78,8 @@ async function claimsForAction (communityContract, actionId) {
 // ascending id is the nth `claimaction` event-source processes for that pair — in
 // live AND replay. `ordinal` is the count of claims already recorded in the DB for
 // this pair (0-based index of the new one). Throws if the chain doesn't have that
-// many claims yet, so a transient/ordering problem retries the block instead of
-// writing a wrong id.
+// many claims yet, so a transient/ordering problem skips the claim (left
+// unprocessed for a later pass — see claimAction) instead of writing a wrong id.
 async function resolveClaimId (communityContract, actionId, maker, ordinal) {
   const mine = (await claimsForAction(communityContract, actionId))
     .filter(c => c.claimer === maker)
@@ -69,7 +89,7 @@ async function resolveClaimId (communityContract, actionId, maker, ordinal) {
   if (!claim) {
     throw new Error(
       `resolveClaimId: chain has ${mine.length} claims for action ${actionId} / ${maker}, ` +
-      `need index ${ordinal}. Retrying block.`
+      `need index ${ordinal}.`
     )
   }
   return Number(claim.id)
@@ -91,8 +111,9 @@ function symbolRaw (symbolString) {
 
 // Fetch every on-chain action for a single objective via the secondary index
 // on objective_id (index_position 2). An objective realistically has far fewer
-// actions than the limit; if the node still reports more, throw so we never
-// pick an id off a truncated set (fail-safe — the block retries).
+// actions than the limit; if the limit is ever hit, throw so we never pick an
+// id off a truncated set (same fail-safe as claimsForAction — and the same
+// warning applies: `res.more` is NOT a truncation signal on nodeos v2.0.x).
 async function actionsForObjective (communityContract, objectiveId) {
   const res = await post('/v1/chain/get_table_rows', {
     json: true,
@@ -105,8 +126,7 @@ async function actionsForObjective (communityContract, objectiveId) {
     upper_bound: objectiveId,
     limit: 5000
   })
-  if (!res || !Array.isArray(res.rows)) throw new Error(`get_table_rows(action) returned no rows for objective ${objectiveId}`)
-  if (res.more) throw new Error(`too many actions for objective ${objectiveId} to page safely`)
+  assertComplete(res, 5000, 'action', `for objective ${objectiveId}`)
   return res.rows
 }
 
@@ -122,8 +142,7 @@ async function objectivesForCommunity (communityContract, communitySymbol) {
     table: 'objective',
     limit: 2000
   })
-  if (!res || !Array.isArray(res.rows)) throw new Error(`get_table_rows(objective) returned no rows for community ${communitySymbol}`)
-  if (res.more) throw new Error(`too many objectives for community ${communitySymbol} to page safely`)
+  assertComplete(res, 2000, 'objective', `for community ${communitySymbol}`)
   return res.rows
 }
 
@@ -168,4 +187,4 @@ async function resolveCreatedObjectiveId (communityContract, communitySymbol, kn
   return created
 }
 
-module.exports = { resolveClaimId, resolveCreatedActionId, resolveCreatedObjectiveId }
+module.exports = { resolveClaimId, resolveCreatedActionId, resolveCreatedObjectiveId, claimsForAction, ResolveError }

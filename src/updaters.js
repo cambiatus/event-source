@@ -1,4 +1,6 @@
 const config = require(`./config/${process.env.NODE_ENV || 'dev'}`)
+const { ResolveError } = require('./chain')
+const { logError } = require('./logging')
 const {
   createCommunity,
   updateCommunity,
@@ -58,7 +60,26 @@ function ledgered (updater) {
       return
     }
 
-    return updater(db, payload, blockInfo, context)
+    try {
+      return await updater(db, payload, blockInfo, context)
+    } catch (e) {
+      // A ResolveError means the updater could not establish the chain id it
+      // must write (e.g. resolveClaimId with the chain read failing) and did
+      // NOT write anything. Writing a serial-id row instead is how the
+      // 2026-08 claim-id drift happened, so instead: un-claim the seq (same
+      // block transaction — the ledger row we just inserted is deleted again,
+      // leaving the action unprocessed for a later pass), page via Sentry, and
+      // let the block commit so the indexer keeps running. Any other error
+      // type still propagates → rollback → process exit (pre-existing
+      // behavior for genuinely unexpected failures).
+      if (!(e instanceof ResolveError)) throw e
+      await db.instance.none('DELETE FROM _processed_actions WHERE global_seq = $1', [seq])
+      logError(
+        `ResolveError: skipped action ${payload.data ? payload.data.action_id : ''} (global_seq ${seq}) — ` +
+        'left unprocessed in _processed_actions for a later pass',
+        e
+      )
+    }
   }
 }
 
