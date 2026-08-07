@@ -4,13 +4,20 @@ const { parseToken, getSymbolFromAsset } = require('../eos_helper')
 //
 // The contract erases a deposit row when it closes, so table state alone can't tell you
 // what happened — history lives in these actions. That is why deposits are addressed by
-// `order_ref` and not by a row id: `release`/`refund` name the order directly, so each
-// action is attributable on its own, with no mirrored state to rebuild on a reindex.
+// `order_ref` and not by a row id: `release`/`refund`/`expire` name the order directly,
+// so each action is attributable on its own, with no mirrored state to rebuild on a
+// reindex.
 //
 // Every updater here is wrapped by `ledgered()` in updaters.js, which claims the action's
 // global_seq inside the block transaction. The per-updater guards below are the second
 // layer, keyed on the same per-action identity (payload.globalSequence), covering history
 // processed before that ledger existed or after it is truncated.
+//
+// Deliberately NOT indexed: `setminimum`. It writes the `mindeposit` config table (the
+// per-symbol deposit floor), which is configuration, not money movement — nothing the
+// reconciler checks depends on it, and mirroring config would add replay-safety surface
+// for no benefit. Consumers that validate a deposit amount (the P3.2/P3.3 buy flow)
+// read the `mindeposit` row from chain instead.
 
 async function regDeposit (db, payload, blockInfo, context) {
   console.log('Cambiatus >>> New Escrow Deposit')
@@ -72,6 +79,16 @@ async function refund (db, payload, blockInfo, context) {
   return closeDeposit(db, payload, blockInfo, 'refunded')
 }
 
+// The backstop close: anyone can fire `expire` once a deposit is older than
+// ESCROW_EXPIRY_SECONDS, and it always pays the buyer. Indexed as its own status
+// (`expired`, not `refunded`) so "the counterparty went silent and the backstop
+// fired" stays distinguishable from "the seller refunded" — the P3.5 escalation
+// work needs to tell them apart.
+async function expire (db, payload, blockInfo, context) {
+  console.log('Cambiatus >>> Escrow Expire')
+  return closeDeposit(db, payload, blockInfo, 'expired')
+}
+
 // Closes the deposit this action actually closed. `status = 'open'` alone is not enough:
 // it matches whichever row is CURRENTLY open, so a replayed close (after a ledger
 // truncation or DB restore) would close a NEWER deposit on the reused ref with the old
@@ -81,13 +98,22 @@ async function refund (db, payload, blockInfo, context) {
 // no open match, making the replay a no-op. No match means we never saw the regdeposit
 // (or already closed it): skip and log rather than throwing, so one unindexed deposit
 // can't wedge the block.
+//
+// closed_by: `release`/`refund` carry a meaningful settler — the buyer, seller or arbiter
+// signed the action, and the contract required that signature. `expire` carries none: it
+// is permissionless (no require_auth, so the authorization array can even be empty) and
+// whoever fires it gains nothing, because the contract always pays the BUYER. So an
+// expired close records the buyer, taken from the row being closed rather than the
+// payload: the one account every expire provably pays, which is also the answer
+// reconciliation needs for "where did the money go".
 async function closeDeposit (db, payload, blockInfo, status) {
   const orderRef = payload.data.order_ref
+  const closedBy = status === 'expired' ? null : payload.authorization[0].actor
 
   const closed = await db.instance.oneOrNone(
     `UPDATE escrow_deposits
         SET status = $1, closed_tx = $2, closed_block = $3, closed_at = $4,
-            closed_by = $5, updated_at = $4
+            closed_by = COALESCE($5, buyer_id), updated_at = $4
       WHERE order_ref = $6 AND status = 'open' AND created_block <= $7
       RETURNING id`,
     [
@@ -95,7 +121,7 @@ async function closeDeposit (db, payload, blockInfo, status) {
       payload.transactionId,
       blockInfo.blockNumber,
       blockInfo.timestamp,
-      payload.authorization[0].actor,
+      closedBy,
       orderRef,
       blockInfo.blockNumber
     ]
@@ -123,5 +149,6 @@ module.exports = {
   regDeposit,
   release,
   refund,
+  expire,
   sweep
 }

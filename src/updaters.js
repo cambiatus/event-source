@@ -25,6 +25,7 @@ const {
   regDeposit,
   release,
   refund,
+  expire,
   sweep
 } = require('./updaters/escrow.js')
 
@@ -151,9 +152,15 @@ const updaters = [
     updater: refund
   },
   {
+    actionType: `${config.blockchain.contract.escrow}::expire`,
+    updater: expire
+  },
+  {
     actionType: `${config.blockchain.contract.escrow}::sweep`,
     updater: sweep
   }
+  // `setminimum` is deliberately not indexed: it is configuration (the `mindeposit`
+  // per-symbol floor), not money movement — see the note in updaters/escrow.js.
 ]
 
 // Every updater goes through the ledger — including ones added later.
