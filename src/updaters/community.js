@@ -570,27 +570,29 @@ async function claimAction (db, payload, blockInfo, context) {
   // carry the id (the contract generates it), so historically we let the DB serial
   // assign it, which drifts from the chain id after any duplicate/extra insert and
   // leaves claims unverifiable (or worse: verifyclaim(db_id) names a DIFFERENT
-  // claim on chain). Recover the real id from chain: the nth claim (by ascending
-  // id) for this (action, claimer) is the nth we process for that pair.
+  // claim on chain). Recover the real id from chain instead: claim ids come from
+  // one global counter, and blocks are processed in order, so the claim this
+  // action created is the first chain claim for this (action, claimer) above the
+  // highest claim id we have already recorded. See chain.js/resolveClaimId for
+  // why that watermark walk reads the primary index and pages on `more`.
   //
-  // There is deliberately NO serial fallback. Falling back converted a transient
-  // chain-read failure into permanent, silent id drift (the 2026-08-05 incident).
-  // A missing claim row is recoverable; a wrong primary key is not. So a resolve
-  // failure throws ResolveError: the `ledgered` wrapper (updaters.js) catches it,
-  // un-claims this action's global_seq in _processed_actions (a later pass picks
-  // it up) and pages via Sentry. It is therefore impossible for a resolve failure
-  // to reach the INSERT below with a serial id.
-  const ordinal = Number(await db.claims.count({
-    action_id: payload.data.action_id,
-    claimer_id: payload.data.maker
-  }))
+  // There is deliberately NO serial fallback. Falling back converted a chain-read
+  // failure into permanent, silent id drift (the 2026-08 incident: the resolver
+  // then read the `byaction` secondary index, which nodeos v2.0.7 truncates on a
+  // time budget and cannot resume, so every read failed and every claim landed on
+  // a serial). A missing claim row is recoverable; a wrong primary key is not. So
+  // a resolve failure throws ResolveError: the `ledgered` wrapper (updaters.js)
+  // catches it, un-claims this action's global_seq in _processed_actions so a
+  // later reindex can pick it up, and pages via Sentry. It is therefore
+  // impossible for a resolve failure to reach the INSERT below with a serial id.
+  const { watermark } = await db.instance.one('SELECT coalesce(max(id), 0) AS watermark FROM claims')
   let claimId
   try {
     claimId = await resolveClaimId(
       config.blockchain.contract.community,
       payload.data.action_id,
       payload.data.maker,
-      ordinal
+      Number(watermark)
     )
   } catch (e) {
     throw new ResolveError(

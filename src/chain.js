@@ -34,65 +34,92 @@ function post (path, body) {
 // apart from a bug that should still crash the indexer.
 class ResolveError extends Error {}
 
-// Do NOT trust `res.more` from get_table_rows on a bounded secondary-index
-// query: on nodeos v2.0.x (prod runs v2.0.7) `more` is true whenever the index
-// iterator stopped anywhere short of end-of-index — i.e. whenever ANY row with
-// a higher key exists — even though the bounds filtered correctly (verified
-// against prod 2026-08-05: a query bounded to action 389 returned only that
-// action's 22 rows, yet `more: true`). Treating it as truncation made every
-// resolve throw, and the caller's serial fallback then wrote drifted claim ids
-// (the live claim-id drift this module exists to prevent). The only reliable
-// truncation signal on these nodeos versions is hitting the requested limit.
-function assertComplete (res, limit, table, context) {
+// `more` from get_table_rows IS an honest "the walk did not reach the end of the
+// index" signal. Do NOT read a row count below `limit` as proof of completeness:
+// on nodeos v2.0.7 (what prod runs) the table walk is TIME-budgeted, so it stops
+// long before `limit` and sets `more: true`.
+//
+// Measured against prod on 2026-08-07: the identical bounded `byaction` claim
+// query returned 31, 35, 38, 51, 60, 67 then 79 rows on seven consecutive calls
+// (the count tracks page-cache warmth, so it is not even deterministic), always
+// with `more: true`; an unbounded read with `limit: 5000` returned 27 rows.
+//
+// So this guard is only safe for sets small enough that the node reliably walks
+// them in one budget — it converts truncation into a throw. Anything that needs
+// a COMPLETE set of a potentially large table must page until `more === false`
+// instead (see resolveClaimId).
+function assertComplete (res, table, context) {
   if (!res || !Array.isArray(res.rows)) throw new Error(`get_table_rows(${table}) returned no rows ${context}`)
-  if (res.rows.length >= limit) throw new Error(`too many ${table} rows ${context} (${res.rows.length} >= limit ${limit}) to page safely`)
+  if (res.more) throw new Error(`get_table_rows(${table}) truncated ${context} (${res.rows.length} rows, more=true) — cannot page safely`)
 }
 
-// Fetch every on-chain claim for a single action via the `byaction` secondary
-// index (index_position 2). An action realistically has far fewer than the
-// limit; if the limit is ever hit, throw so we never compute an ordinal off a
-// truncated set (fail-safe — the claim is skipped and left unprocessed for a
-// later pass; see claimAction). `limit` is a parameter only so acceptance
-// tests can exercise the truncation guard without writing 5000 chain rows.
-async function claimsForAction (communityContract, actionId, limit = 5000) {
+// One page of the `claim` table read through the PRIMARY index, ascending from
+// `lowerBound` (inclusive).
+//
+// The primary index is the only one we can page: `next_key` comes back as the
+// next row's id and strictly advances, and the walk terminates with
+// `more: false`. On a SECONDARY index (`byaction`) nodeos returns the secondary
+// key instead — a query bounded to action 389 returns `next_key: 389` — so a
+// truncated secondary read cannot be resumed at all. That is why claim
+// resolution reads the primary index and filters client-side rather than asking
+// the node for "the claims of action N".
+async function claimPage (communityContract, lowerBound, limit) {
   const res = await post('/v1/chain/get_table_rows', {
     json: true,
     code: communityContract,
     scope: communityContract,
     table: 'claim',
-    index_position: 2,
-    key_type: 'i64',
-    lower_bound: actionId,
-    upper_bound: actionId,
+    lower_bound: lowerBound,
     limit
   })
-  assertComplete(res, limit, 'claim', `for action ${actionId}`)
-  return res.rows
+  if (!res || !Array.isArray(res.rows)) {
+    throw new Error(`get_table_rows(claim) returned no rows from id ${lowerBound}`)
+  }
+  return res
 }
 
-// Resolve the real on-chain claim id for the claim being processed.
+// Resolve the real on-chain claim id for the claim a `claimaction` just created.
 //
-// The chain assigns claim ids sequentially (get_available_id) and NEVER deletes a
-// claim (verifyclaim only mutates status), and the `claimaction` payload does not
-// carry the generated id. So for a given (action, claimer), the nth claim by
-// ascending id is the nth `claimaction` event-source processes for that pair — in
-// live AND replay. `ordinal` is the count of claims already recorded in the DB for
-// this pair (0-based index of the new one). Throws if the chain doesn't have that
-// many claims yet, so a transient/ordering problem skips the claim (left
-// unprocessed for a later pass — see claimAction) instead of writing a wrong id.
-async function resolveClaimId (communityContract, actionId, maker, ordinal) {
-  const mine = (await claimsForAction(communityContract, actionId))
-    .filter(c => c.claimer === maker)
-    .sort((a, b) => Number(a.id) - Number(b.id))
+// `claimaction` does not carry the id: the contract generates it with
+// get_available_id("claims"), a single global counter, so claim ids are globally
+// ascending, never reused and never deleted (verifyclaim only mutates status).
+// event-source processes actions in chain order, so the claim created by the
+// action being processed is the FIRST claim on chain for this (action, claimer)
+// with an id above every claim id already recorded — `afterId`, the DB's current
+// max claim id.
+//
+// Reading forward from a watermark, rather than counting a pair's claims and
+// taking the nth, is what makes this safe under truncation: a short page just
+// costs another request instead of silently shrinking the set an ordinal indexes
+// into. It is also robust to a gap: a claim skipped by an earlier ResolveError
+// sits BELOW the watermark as soon as any later claim is recorded, so its id can
+// never be handed to a different claim.
+async function resolveClaimId (communityContract, actionId, maker, afterId, pageLimit = 1000, maxPages = 1000) {
+  let lowerBound = Number(afterId) + 1
 
-  const claim = mine[ordinal]
-  if (!claim) {
-    throw new Error(
-      `resolveClaimId: chain has ${mine.length} claims for action ${actionId} / ${maker}, ` +
-      `need index ${ordinal}.`
-    )
+  for (let page = 0; page < maxPages; page++) {
+    const res = await claimPage(communityContract, lowerBound, pageLimit)
+
+    // Rows come back ascending by id, so the first match in the first page that
+    // contains one is the smallest matching id above the watermark.
+    const match = res.rows.find(r => Number(r.action_id) === Number(actionId) && r.claimer === maker)
+    if (match) return Number(match.id)
+
+    if (!res.more) break
+
+    const next = Number(res.next_key)
+    if (!Number.isFinite(next) || next <= lowerBound) {
+      throw new Error(
+        `resolveClaimId: get_table_rows(claim) reported more rows from id ${lowerBound} but ` +
+        `next_key (${res.next_key}) did not advance — cannot page`
+      )
+    }
+    lowerBound = next
   }
-  return Number(claim.id)
+
+  throw new Error(
+    `resolveClaimId: no chain claim for action ${actionId} / ${maker} above id ${afterId}`
+  )
 }
 
 // Convert a "precision,CODE" symbol string (the format used across this repo,
@@ -110,10 +137,12 @@ function symbolRaw (symbolString) {
 }
 
 // Fetch every on-chain action for a single objective via the secondary index
-// on objective_id (index_position 2). An objective realistically has far fewer
-// actions than the limit; if the limit is ever hit, throw so we never pick an
-// id off a truncated set (same fail-safe as claimsForAction — and the same
-// warning applies: `res.more` is NOT a truncation signal on nodeos v2.0.x).
+// on objective_id (index_position 2). Objectives hold a handful of actions
+// (measured on prod 2026-08-07: objective 93 -> 2 rows, `more: false`), well
+// inside one walk budget, so assertComplete's throw-on-`more` is the right
+// guard here. If an objective ever grows past what the node walks in one
+// budget this must move to primary-index paging like resolveClaimId — a
+// secondary index cannot be resumed.
 async function actionsForObjective (communityContract, objectiveId) {
   const res = await post('/v1/chain/get_table_rows', {
     json: true,
@@ -126,7 +155,7 @@ async function actionsForObjective (communityContract, objectiveId) {
     upper_bound: objectiveId,
     limit: 5000
   })
-  assertComplete(res, 5000, 'action', `for objective ${objectiveId}`)
+  assertComplete(res, 'action', `for objective ${objectiveId}`)
   return res.rows
 }
 
@@ -142,7 +171,7 @@ async function objectivesForCommunity (communityContract, communitySymbol) {
     table: 'objective',
     limit: 2000
   })
-  assertComplete(res, 2000, 'objective', `for community ${communitySymbol}`)
+  assertComplete(res, 'objective', `for community ${communitySymbol}`)
   return res.rows
 }
 
@@ -187,4 +216,4 @@ async function resolveCreatedObjectiveId (communityContract, communitySymbol, kn
   return created
 }
 
-module.exports = { resolveClaimId, resolveCreatedActionId, resolveCreatedObjectiveId, claimsForAction, ResolveError }
+module.exports = { resolveClaimId, resolveCreatedActionId, resolveCreatedObjectiveId, claimPage, ResolveError }

@@ -65,18 +65,25 @@ function ledgered (updater) {
     } catch (e) {
       // A ResolveError means the updater could not establish the chain id it
       // must write (e.g. resolveClaimId with the chain read failing) and did
-      // NOT write anything. Writing a serial-id row instead is how the
+      // NOT write anything — every thrower must guarantee that, because the
+      // block still commits below. Writing a serial-id row instead is how the
       // 2026-08 claim-id drift happened, so instead: un-claim the seq (same
-      // block transaction — the ledger row we just inserted is deleted again,
-      // leaving the action unprocessed for a later pass), page via Sentry, and
-      // let the block commit so the indexer keeps running. Any other error
-      // type still propagates → rollback → process exit (pre-existing
-      // behavior for genuinely unexpected failures).
+      // block transaction — the ledger row we just inserted is deleted again),
+      // page via Sentry, and let the block commit so the indexer keeps running.
+      // Any other error type still propagates → rollback → process exit
+      // (pre-existing behavior for genuinely unexpected failures).
+      //
+      // NOTE this is a real data loss until someone acts: demux's own block
+      // cursor advances past this block regardless, so nothing reprocesses the
+      // action on its own. Deleting the ledger row only makes it ELIGIBLE for a
+      // later reindex of the range (scripts/reindex-runbook.md) — which is why
+      // the Sentry page matters. The trade is deliberate: a missing claim row
+      // can be reindexed, a wrong primary key cannot be undone.
       if (!(e instanceof ResolveError)) throw e
       await db.instance.none('DELETE FROM _processed_actions WHERE global_seq = $1', [seq])
       logError(
         `ResolveError: skipped action ${payload.data ? payload.data.action_id : ''} (global_seq ${seq}) — ` +
-        'left unprocessed in _processed_actions for a later pass',
+        'ledger row removed; needs a reindex of this block range to recover',
         e
       )
     }
