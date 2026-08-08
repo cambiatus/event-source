@@ -4,7 +4,8 @@ const {
   parseToken
 } = require('../eos_helper')
 const config = require(`../config/${process.env.NODE_ENV || 'dev'}`)
-const { resolveClaimId, resolveCreatedActionId, resolveCreatedObjectiveId } = require('../chain')
+const { resolveClaimId, resolveCreatedActionId, resolveCreatedObjectiveId, ResolveError } = require('../chain')
+const { toUTC } = require('../dates')
 
 async function createCommunity (db, payload, blockInfo) {
   console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
@@ -22,7 +23,7 @@ async function createCommunity (db, payload, blockInfo) {
     const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
     const subdomainId = await (async () => {
       if (subdomains.length === 0) {
-        const newSubdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+        const newSubdomain = await tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: toUTC(new Date()), updated_at: toUTC(new Date()) })
         return newSubdomain.id
       } else {
         console.log('Trying to create a new community with a subdomain, skipping')
@@ -47,7 +48,7 @@ async function createCommunity (db, payload, blockInfo) {
       created_block: blockInfo.blockNumber,
       created_tx: payload.transactionId,
       created_eos_account: payload.authorization[0].actor,
-      created_at: blockInfo.timestamp
+      created_at: toUTC(blockInfo.timestamp)
     }
 
     // create community
@@ -68,7 +69,7 @@ async function createCommunity (db, payload, blockInfo) {
         blockInfo.blockNumber,
         payload.transactionId,
         payload.authorization[0].actor,
-        blockInfo.timestamp
+        toUTC(blockInfo.timestamp)
       ]
     )
 
@@ -77,8 +78,8 @@ async function createCommunity (db, payload, blockInfo) {
       name: 'member',
       permissions: '{"invite", "claim", "order", "sell", "transfer"}',
       created_tx: payload.transactionId,
-      inserted_at: new Date(),
-      updated_at: new Date()
+      inserted_at: toUTC(new Date()),
+      updated_at: toUTC(new Date())
     }
 
     const role = await tx.roles.insert(roleData)
@@ -90,7 +91,7 @@ async function createCommunity (db, payload, blockInfo) {
       created_block: blockInfo.blockNumber,
       created_tx: payload.transactionId,
       created_eos_account: payload.authorization[0].actor,
-      created_at: blockInfo.timestamp
+      created_at: toUTC(blockInfo.timestamp)
     }
 
     const network = await tx.network.insert(networkData)
@@ -99,8 +100,8 @@ async function createCommunity (db, payload, blockInfo) {
       network_id: network.id,
       role_id: role.id,
       created_tx: payload.transactionId,
-      inserted_at: new Date(),
-      updated_at: new Date()
+      inserted_at: toUTC(new Date()),
+      updated_at: toUTC(new Date())
     }
 
     await tx.network_roles.insert(networkRoleData)
@@ -124,7 +125,7 @@ async function updateCommunity (db, payload, blockInfo, context) {
     const subdomains = await tx.subdomains.find({ name: payload.data.subdomain })
     const subdomain = await (async () => {
       if (subdomains.length === 0) {
-        return tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: new Date(), updated_at: new Date() })
+        return tx.subdomains.insert({ name: payload.data.subdomain, inserted_at: toUTC(new Date()), updated_at: toUTC(new Date()) })
       } else {
         return subdomains[0]
       }
@@ -181,7 +182,7 @@ async function netlink (db, payload, blockInfo, context) {
       blockInfo.blockNumber,
       payload.transactionId,
       payload.authorization[0].actor,
-      blockInfo.timestamp
+      toUTC(blockInfo.timestamp)
     ]
   )
 
@@ -200,7 +201,7 @@ async function netlink (db, payload, blockInfo, context) {
       blockInfo.blockNumber,
       payload.transactionId,
       payload.authorization[0].actor,
-      blockInfo.timestamp
+      toUTC(blockInfo.timestamp)
     ]
   )
 
@@ -214,12 +215,12 @@ async function netlink (db, payload, blockInfo, context) {
     network_id: network.id,
     role_id: role.id,
     created_tx: payload.transactionId,
-    inserted_at: new Date(),
-    updated_at: new Date()
+    inserted_at: toUTC(new Date()),
+    updated_at: toUTC(new Date())
   })
 }
 
-function transferSale (db, payload, blockInfo, context) {
+async function transferSale (db, payload, blockInfo, context) {
   console.log(`Cambiatus >>> New Transfer Sale`, blockInfo.blockNumber)
 
   const transaction = async tx => {
@@ -274,10 +275,10 @@ function transferSale (db, payload, blockInfo, context) {
       total_token: amount,
       created_block: blockInfo.blockNumber,
       created_tx: payload.transactionId,
-      created_at: blockInfo.timestamp,
+      created_at: toUTC(blockInfo.timestamp),
       created_eos_account: payload.authorization[0].actor,
-      inserted_at: blockInfo.timestamp,
-      updated_at: blockInfo.timestamp
+      inserted_at: toUTC(blockInfo.timestamp),
+      updated_at: toUTC(blockInfo.timestamp)
     }
 
     const order = await tx.orders.insert(insertData)
@@ -291,14 +292,28 @@ function transferSale (db, payload, blockInfo, context) {
       quantity: quantity,
       unit_price_token: amount / Math.max(quantity, 1),
       title_snapshot: sale.title,
-      inserted_at: blockInfo.timestamp,
-      updated_at: blockInfo.timestamp
+      inserted_at: toUTC(blockInfo.timestamp),
+      updated_at: toUTC(blockInfo.timestamp)
     })
   }
 
-  db.withTransaction(transaction).catch(e =>
+  // Return the transaction so ledgered() can await it. Without the return the updater
+  // was fire-and-forget: the block transaction could commit (claiming the action's
+  // global_seq in _processed_actions) while this inner work was still running, and a
+  // failure there would then be skipped by every future reindex — the "claimed ledger
+  // row without applied writes" mode the reindex runbook warns about.
+  //
+  // Log AND rethrow. Awaiting a promise that a .catch() has already turned back into a
+  // success would fix only half of that: ledgered would see the updater resolve, keep
+  // the _processed_actions row it just claimed, and the order would still be recorded
+  // as applied while none of its writes landed. Rethrowing propagates through
+  // ledgered's non-ResolveError branch → block rollback (the ledger row goes with it)
+  // → the pre-existing loud exit, so the action stays unprocessed and a restart or
+  // reindex re-runs it.
+  return db.withTransaction(transaction).catch(e => {
     logError('Something went wrong while transferring sale', e)
-  )
+    throw e
+  })
 }
 
 async function upsertObjective (db, payload, blockInfo, _context) {
@@ -331,7 +346,7 @@ async function upsertObjective (db, payload, blockInfo, _context) {
   data = Object.assign(data, {
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
-    created_at: blockInfo.timestamp,
+    created_at: toUTC(blockInfo.timestamp),
     created_eos_account: payload.authorization[0].actor
   })
 
@@ -409,7 +424,7 @@ function upsertAction (db, payload, blockInfo, _context) {
       usages_left: payload.data.usages,
       verifications: payload.data.verifications,
       verification_type: payload.data.verification_type,
-      deadline: payload.data.deadline > 0 ? deadlineDateTime : null,
+      deadline: payload.data.deadline > 0 ? toUTC(deadlineDateTime) : null,
       has_proof_photo: payload.data.has_proof_photo === 1,
       has_proof_code: payload.data.has_proof_code === 1,
       photo_proof_instructions: payload.data.photo_proof_instructions === '' ? null : payload.data.photo_proof_instructions,
@@ -433,7 +448,7 @@ function upsertAction (db, payload, blockInfo, _context) {
       data = Object.assign(data, {
         created_block: blockInfo.blockNumber,
         created_tx: payload.transactionId,
-        created_at: blockInfo.timestamp,
+        created_at: toUTC(blockInfo.timestamp),
         created_eos_account: payload.authorization[0].actor
       })
 
@@ -511,7 +526,7 @@ function upsertAction (db, payload, blockInfo, _context) {
                 created_block: blockInfo.blockNumber,
                 created_tx: payload.transactionId,
                 created_eos_account: payload.authorization[0].actor,
-                created_at: blockInfo.timestamp
+                created_at: toUTC(blockInfo.timestamp)
               })
             )
           )
@@ -578,8 +593,8 @@ async function reward (db, payload, blockInfo, context) {
         receiver_id: payload.data.receiver,
         awarder_id: payload.data.awarder,
         created_tx: payload.transactionId,
-        inserted_at: new Date(),
-        updated_at: new Date()
+        inserted_at: toUTC(new Date()),
+        updated_at: toUTC(new Date())
       }
 
       db.rewards.save(data)
@@ -607,40 +622,47 @@ async function claimAction (db, payload, blockInfo, context) {
   // verifyclaim(claim.id) against the chain. The `claimaction` payload does not
   // carry the id (the contract generates it), so historically we let the DB serial
   // assign it, which drifts from the chain id after any duplicate/extra insert and
-  // leaves claims unverifiable. Recover the real id from chain: the nth claim (by
-  // ascending id) for this (action, claimer) is the nth we process for that pair.
+  // leaves claims unverifiable (or worse: verifyclaim(db_id) names a DIFFERENT
+  // claim on chain). Recover the real id from chain instead: claim ids come from
+  // one global counter, and blocks are processed in order, so the claim this
+  // action created is the first chain claim for this (action, claimer) above the
+  // highest claim id we have already recorded. See chain.js/resolveClaimId for
+  // why that watermark walk reads the primary index and pages on `more`.
   //
-  // On any failure (chain unreachable, unexpected count) we fall back to the serial
-  // rather than throw — a throw here becomes an unhandledRejection → process exit →
-  // pm2 crash-loop. The serial is realigned to the chain by the one-time
-  // claims-id-reconciliation, so the fallback stays correct unless a new drift is
-  // introduced; the explicit-id path is what makes it robust against that.
+  // There is deliberately NO serial fallback. Falling back converted a chain-read
+  // failure into permanent, silent id drift (the 2026-08 incident: the resolver
+  // then read the `byaction` secondary index, which nodeos v2.0.7 truncates on a
+  // time budget and cannot resume, so every read failed and every claim landed on
+  // a serial). A missing claim row is recoverable; a wrong primary key is not. So
+  // a resolve failure throws ResolveError: the `ledgered` wrapper (updaters.js)
+  // catches it, un-claims this action's global_seq in _processed_actions so a
+  // later reindex can pick it up, and pages via Sentry. It is therefore
+  // impossible for a resolve failure to reach the INSERT below with a serial id.
+  const { watermark } = await db.instance.one('SELECT coalesce(max(id), 0) AS watermark FROM claims')
   let claimId
   try {
-    const ordinal = Number(await db.claims.count({
-      action_id: payload.data.action_id,
-      claimer_id: payload.data.maker
-    }))
     claimId = await resolveClaimId(
       config.blockchain.contract.community,
       payload.data.action_id,
       payload.data.maker,
-      ordinal
+      Number(watermark)
     )
   } catch (e) {
-    logError('Could not resolve chain claim id, falling back to serial', e)
-    claimId = undefined
+    throw new ResolveError(
+      `claim id resolution failed for action ${payload.data.action_id} / ${payload.data.maker} ` +
+      `at block ${blockInfo.blockNumber}: ${e.message}`
+    )
   }
 
   const data = {
-    ...(claimId ? { id: claimId } : {}),
+    id: claimId,
     action_id: payload.data.action_id,
     claimer_id: payload.data.maker,
     status: 'pending',
     created_block: blockInfo.blockNumber,
     created_tx: payload.transactionId,
     created_eos_account: payload.authorization[0].actor,
-    created_at: blockInfo.timestamp,
+    created_at: toUTC(blockInfo.timestamp),
     proof_photo: payload.data.proof_photo === '' ? null : payload.data.proof_photo,
     proof_code: payload.data.proof_code === '' ? null : payload.data.proof_code
   }
@@ -711,7 +733,7 @@ async function verifyClaim (db, payload, blockInfo, context) {
       blockInfo.blockNumber,
       payload.transactionId,
       payload.authorization[0].actor,
-      blockInfo.timestamp
+      toUTC(blockInfo.timestamp)
     ]
   )
 
@@ -755,8 +777,8 @@ async function upsertRole (db, payload, blockInfo, _context) {
     color: payload.data.color,
     permissions: '{' + payload.data.permissions.map(p => `"${p}"`).join(', ') + '}',
     created_tx: payload.transactionId,
-    inserted_at: new Date(),
-    updated_at: new Date()
+    inserted_at: toUTC(new Date()),
+    updated_at: toUTC(new Date())
   }
 
   try {
@@ -828,8 +850,8 @@ async function assignRole (db, payload, blockInfo, _context) {
       network_id: foundNetwork.id,
       role_id: roleId,
       created_tx: payload.transactionId,
-      inserted_at: new Date(),
-      updated_at: new Date()
+      inserted_at: toUTC(new Date()),
+      updated_at: toUTC(new Date())
     })
   }
 }
