@@ -167,12 +167,24 @@ ALTER TABLE notification_history ADD CONSTRAINT notification_history_claim_id_fk
 
     if backfill:
         p("""
--- Chain claims that never got a DB row: two claimactions for the same
--- (action, claimer) in ONE transaction, collapsed by claimAction's
--- (created_tx, action_id, claimer_id) dedup guard. created_block/created_tx are
--- not recoverable from table data and stay NULL. Status is the CHAIN status;
--- the votes these claims received were recorded against whichever row held the
--- id at the time, so no checks are synthesised here.""")
+-- Chain claims that never got a DB row. Both known cases (chain 19871, 19904)
+-- are the second of two claimactions the same claimer sent for the same action
+-- with an identical proof_photo -- a double submit. They are NOT same-transaction
+-- duplicates: each pair is two SEPARATE transactions that happened to land in one
+-- block, so claimAction's (created_tx, action_id, claimer_id) dedup guard never
+-- saw them as duplicates and is not what dropped them.
+--
+-- What most likely dropped them: the old resolver hit a truncated chain read,
+-- fell back to a DB serial, and that serial collided with an id already taken --
+-- and the insert sat behind `.catch(e => logError(...))`, so the row vanished
+-- without stopping the block. Removing the serial fallback closes this.
+--
+-- created_block/created_tx/created_eos_account are NOT in the chain `claim`
+-- table, so this INSERT leaves them NULL and they must be backfilled from
+-- /v1/history/get_actions afterwards -- the GraphQL :claim type marks them
+-- non_null, and one NULL row nullifies a whole claims list in the Elm app.
+-- Status is the CHAIN status; votes these claims received were recorded against
+-- whichever row held the id at the time, so no checks are synthesised here.""")
         p('INSERT INTO claims (id, action_id, claimer_id, status, proof_photo, proof_code, created_at) VALUES')
         rows = []
         for cid in backfill:
