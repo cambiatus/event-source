@@ -148,6 +148,18 @@ UPDATE claims c SET id = m.new_id FROM _claim_id_map m WHERE c.id = m.old_id + 1
 UPDATE checks k SET claim_id = m.new_id FROM _claim_id_map m WHERE k.claim_id = m.old_id + 1000000;
 UPDATE notification_history n SET claim_id = m.new_id FROM _claim_id_map m WHERE n.claim_id = m.old_id + 1000000;
 
+-- notification_history.payload embeds the claim id AGAIN, as double-encoded json
+-- ({"record":{"id":N}}) with no foreign key, so the renumber above would leave it
+-- pointing at whatever claim now holds the old id. Verified on prod 2026-08-08:
+-- every notification row in this range has that exact shape and record.id equal
+-- to claim_id, and re-encoding round-trips byte-identically. Keyed on the parked
+-- claim_id so it moves with the row. jsonb_set re-serialises, so the stored text
+-- picks up jsonb's spacing -- semantically identical, and the resolver decodes it.
+UPDATE notification_history n
+   SET payload = to_json(jsonb_set((n.payload #>> '{}')::jsonb, '{record,id}', to_jsonb(m.new_id))::text)
+  FROM _claim_id_map m
+ WHERE n.claim_id = m.new_id;
+
 ALTER TABLE checks ADD CONSTRAINT checks_claim_id_fkey
   FOREIGN KEY (claim_id) REFERENCES claims(id);
 ALTER TABLE notification_history ADD CONSTRAINT notification_history_claim_id_fkey
@@ -181,7 +193,13 @@ SELECT (SELECT count(*) FROM claims WHERE id >= 1000000)
      + (SELECT count(*) FROM notification_history WHERE claim_id >= 1000000) AS parked_left;
 -- 0 orphaned checks:
 SELECT count(*) AS orphan_checks FROM checks k
-  WHERE NOT EXISTS (SELECT 1 FROM claims c WHERE c.id = k.claim_id);""")
+  WHERE NOT EXISTS (SELECT 1 FROM claims c WHERE c.id = k.claim_id);
+-- 0 notifications for a renumbered claim whose embedded payload id disagrees
+-- with claim_id (scoped to the renumbered ids: other notification types carry a
+-- different payload shape entirely):
+SELECT count(*) AS payload_mismatches FROM notification_history
+ WHERE claim_id IN (SELECT new_id FROM _claim_id_map)
+   AND ((payload #>> '{}')::jsonb #>> '{record,id}')::bigint IS DISTINCT FROM claim_id;""")
     p('-- expect %d rows, max id %d:' % (len(db) + len(backfill), max(chain)))
     p('SELECT count(*) AS total, max(id) AS max_id FROM claims WHERE id >= %d;' % FROM_ID)
     p('\n-- ROLLBACK;  -- if anything looks off')
