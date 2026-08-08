@@ -1,4 +1,5 @@
 const { parseToken, getSymbolFromAsset } = require('../eos_helper')
+const { toUTC } = require('../dates')
 
 // Mirrors the `cambiatus.es` escrow contract into `escrow_deposits`.
 //
@@ -63,7 +64,7 @@ async function regDeposit (db, payload, blockInfo, context) {
       amount,
       payload.transactionId,
       blockInfo.blockNumber,
-      blockInfo.timestamp,
+      toUTC(blockInfo.timestamp),
       payload.globalSequence
     ]
   )
@@ -120,7 +121,7 @@ async function closeDeposit (db, payload, blockInfo, status) {
       status,
       payload.transactionId,
       blockInfo.blockNumber,
-      blockInfo.timestamp,
+      toUTC(blockInfo.timestamp),
       closedBy,
       orderRef,
       blockInfo.blockNumber
