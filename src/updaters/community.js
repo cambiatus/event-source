@@ -365,11 +365,15 @@ async function upsertObjective (db, payload, blockInfo, _context) {
   // insert. Recover the real id from chain: the smallest on-chain id this community
   // has that we don't have yet is this create (blocks are processed in order).
   //
-  // On any failure (chain unreachable, no missing id) we fall back to the serial
-  // rather than throw — a throw here becomes an unhandledRejection → process exit →
-  // pm2 crash-loop. The serial was realigned to the chain counter by the 2026-07-02
-  // remediation, so the fallback stays correct unless a new drift is introduced; the
-  // explicit-id path is what keeps that drift from re-opening.
+  // There is deliberately NO serial fallback (same rule as claimAction). Falling
+  // back is what let the 2026-08 claim-id drift happen: a chain read that came
+  // back short was indistinguishable from success, and the serial it substituted
+  // silently named a different objective. A missing objective row can be
+  // reindexed; a wrong primary key cannot be undone, and here it also makes the
+  // objective un-editable and its actions un-creatable. So a resolve failure
+  // throws ResolveError, which `ledgered` turns into "un-claim this global_seq
+  // and leave the action for a reindex". Nothing is written before this point,
+  // which is what makes that safe.
   try {
     const known = await db.objectives.find(
       { community_id: payload.data.community_id },
@@ -381,17 +385,20 @@ async function upsertObjective (db, payload, blockInfo, _context) {
       new Set(known.map(o => Number(o.id)))
     )
   } catch (e) {
-    logError('Could not resolve chain objective id, falling back to serial', e)
-    delete data.id
+    throw new ResolveError(
+      `objective id resolution failed for community ${payload.data.community_id} ` +
+      `at block ${blockInfo.blockNumber}: ${e.message}`
+    )
   }
 
   // insert(), not save(): with an id present save() emits an UPDATE (matching
-  // nothing for a new id); without one the serial assigns it.
-  return db.objectives
-    .insert(data)
-    .catch(e =>
-      logError('Something went wrong while creating objective', e)
-    )
+  // nothing for a new id). Log AND rethrow — swallowing here would drop the
+  // objective while `ledgered` still recorded the action as processed, which is
+  // the likeliest way the two claims missing from prod went missing.
+  return db.objectives.insert(data).catch(e => {
+    logError('Something went wrong while creating objective', e)
+    throw e
+  })
 }
 
 function upsertAction (db, payload, blockInfo, _context) {
@@ -474,11 +481,15 @@ function upsertAction (db, payload, blockInfo, _context) {
       // the transaction would hold a DB connection open for its whole duration
       // (claimAction resolves before its insert for the same reason).
       //
-      // On any failure (chain unreachable, no missing id) we fall back to the serial
-      // rather than throw — a throw here becomes an unhandledRejection → process exit →
-      // pm2 crash-loop. The serial was realigned to the chain counter by the 2026-07-02
-      // remediation, so the fallback stays correct unless a new drift is introduced; the
-      // explicit-id path is what keeps that drift from re-opening.
+      // There is deliberately NO serial fallback (same rule as claimAction and
+      // upsertObjective). A substituted serial silently names a DIFFERENT action:
+      // the action becomes un-editable, and because claimaction carries action_id,
+      // later claims attach to the wrong action — this is the shape of the phantom
+      // action ids 399-406 the audit found. A missing action row can be reindexed;
+      // a wrong primary key cannot be undone. So a resolve failure throws
+      // ResolveError and `ledgered` leaves the action unprocessed. Nothing is
+      // written before this point (the withTransaction below is the first write),
+      // which is what makes that safe.
       try {
         const known = await db.actions.find(
           { objective_id: payload.data.objective_id },
@@ -490,8 +501,10 @@ function upsertAction (db, payload, blockInfo, _context) {
           new Set(known.map(a => Number(a.id)))
         )
       } catch (e) {
-        logError('Could not resolve chain action id, falling back to serial', e)
-        delete data.id
+        throw new ResolveError(
+          `action id resolution failed for objective ${payload.data.objective_id} ` +
+          `at block ${blockInfo.blockNumber}: ${e.message}`
+        )
       }
     }
 
@@ -532,12 +545,17 @@ function upsertAction (db, payload, blockInfo, _context) {
           )
         )
       })
-    }).catch(e =>
+    }).catch(e => {
+      // Log AND rethrow. Swallowing left the action (and its validators) unwritten
+      // while `ledgered` kept the _processed_actions row, so the create was recorded
+      // as applied and no reindex would ever revisit it. Rethrowing rolls the block
+      // back, taking the ledger row with it.
       logError(
         'Something went wrong while executing transaction to create an action',
         e
       )
-    )
+      throw e
+    })
   })
 }
 
