@@ -76,4 +76,9 @@ typings/
 .serverless
 
 # FuseBox cache
-.fusebox/src/config/fresh.js
+.fusebox/
+src/config/fresh.js
+
+# PM2 process definition: holds the production DB password in plaintext.
+# Use ecosystem.config.example.js as the template.
+ecosystem.config.js
