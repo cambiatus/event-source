@@ -322,7 +322,13 @@ async function upsertObjective (db, payload, blockInfo, _context) {
   let data = {
     community_id: payload.data.community_id,
     creator_id: payload.data.editor,
-    description: payload.data.description
+    description: payload.data.description,
+    // Who wrote THIS row version. created_* is stamped once on the create and never
+    // rewritten (the replay guard below keys on created_tx), so without this an edit
+    // was announced to the original creator under the original hash and the signer's
+    // tx tracker could never match it.
+    last_tx: payload.transactionId,
+    last_eos_account: payload.authorization[0].actor
   }
 
   if (payload.data.objective_id > 0) {
@@ -424,6 +430,9 @@ function upsertAction (db, payload, blockInfo, _context) {
       objective_id: payload.data.objective_id,
       creator_id: payload.data.creator,
       description: payload.data.description,
+      // Who wrote THIS row version — see the objective updater above.
+      last_tx: payload.transactionId,
+      last_eos_account: payload.authorization[0].actor,
       reward: rewardAmount,
       verifier_reward: verifierAmount,
       is_completed: false,
