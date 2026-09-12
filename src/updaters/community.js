@@ -436,6 +436,8 @@ function upsertAction (db, payload, blockInfo, _context) {
       reward: rewardAmount,
       verifier_reward: verifierAmount,
       is_completed: false,
+      // effective_closed is set further down, inside db.withTransaction, right
+      // before the write — see the comment there for why it can't be read here.
       usages: payload.data.usages,
       usages_left: payload.data.usages,
       verifications: payload.data.verifications,
@@ -517,43 +519,59 @@ function upsertAction (db, payload, blockInfo, _context) {
       }
     }
 
-    return db.withTransaction(tx => {
+    return db.withTransaction(async tx => {
+      // effective_closed is read HERE — inside the transaction, on tx (not db),
+      // immediately before the write — rather than from the `o` fetched at the
+      // top of this function. Backend's Objectives.complete_objective/2 bulk-sets
+      // effective_closed=true for every action under an objective in one
+      // update_all when the FIRST of a multi-action completion's upsertactions
+      // confirms; this function is still processing actions 2..N at that point.
+      // Reading `o.is_completed` up there (fetched before the create-path's
+      // chain-id-resolution await, or before whatever else runs earlier in a
+      // busy indexer) would capture is_completed=false from before completion,
+      // and writing that stale value here — after backend's update_all already
+      // landed true — would silently clobber it back to false: a lost update,
+      // not a theoretical one (see scripts/objective-closed-action-adr.md in the
+      // backend repo). Re-reading right before the write on tx's own connection
+      // (not db's separate pooled one — see the validators comment below for why
+      // that distinction matters) shrinks that window to as small as this
+      // function can make it.
+      const freshObjective = await tx.objectives.findOne({ id: payload.data.objective_id })
+      data.effective_closed = freshObjective.is_completed
+
       // Create path uses insert(), not save(): with an explicit id present save()
       // emits an UPDATE (matching nothing for a new id); insert() honors the id, and
       // without one the serial assigns it. The update path keeps save()'s upsert-by-id.
-      const writeAction =
-        payload.data.action_id > 0 ? tx.actions.save(data) : tx.actions.insert(data)
+      const savedAction =
+        payload.data.action_id > 0
+          ? await tx.actions.save(data)
+          : await tx.actions.insert(data)
 
-      return writeAction.then(savedAction => {
-        // On update, replace the validator set: delete the old rows then
-        // re-insert from validators_str. Both the delete and the inserts run
-        // inside `tx` and are awaited, so the transaction commits only after
-        // they complete. Previously the delete ran on `db` (a separate
-        // connection) and neither it nor the inserts were awaited, so the tx
-        // could commit before the inserts landed — or the out-of-tx delete
-        // could race and wipe them — leaving an action with zero validators
-        // and its claims permanently invisible to validators. Any failure now
-        // rolls back the whole action instead of being silently swallowed.
-        const replaceValidators =
-          payload.data.action_id > 0
-            ? tx.validators.destroy({ action_id: payload.data.action_id })
-            : Promise.resolve()
+      // On update, replace the validator set: delete the old rows then re-insert
+      // from validators_str. Both the delete and the inserts run inside `tx` and
+      // are awaited, so the transaction commits only after they complete.
+      // Previously the delete ran on `db` (a separate connection) and neither it
+      // nor the inserts were awaited, so the tx could commit before the inserts
+      // landed — or the out-of-tx delete could race and wipe them — leaving an
+      // action with zero validators and its claims permanently invisible to
+      // validators. Any failure now rolls back the whole action instead of being
+      // silently swallowed.
+      if (payload.data.action_id > 0) {
+        await tx.validators.destroy({ action_id: payload.data.action_id })
+      }
 
-        return replaceValidators.then(() =>
-          Promise.all(
-            validators.map(validator =>
-              tx.validators.insert({
-                action_id: savedAction.id,
-                validator_id: validator,
-                created_block: blockInfo.blockNumber,
-                created_tx: payload.transactionId,
-                created_eos_account: payload.authorization[0].actor,
-                created_at: toUTC(blockInfo.timestamp)
-              })
-            )
-          )
+      return Promise.all(
+        validators.map(validator =>
+          tx.validators.insert({
+            action_id: savedAction.id,
+            validator_id: validator,
+            created_block: blockInfo.blockNumber,
+            created_tx: payload.transactionId,
+            created_eos_account: payload.authorization[0].actor,
+            created_at: toUTC(blockInfo.timestamp)
+          })
         )
-      })
+      )
     }).catch(e => {
       // Log AND rethrow. Swallowing left the action (and its validators) unwritten
       // while `ledgered` kept the _processed_actions row, so the create was recorded
