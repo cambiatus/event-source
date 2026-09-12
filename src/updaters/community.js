@@ -532,12 +532,33 @@ function upsertAction (db, payload, blockInfo, _context) {
       // and writing that stale value here — after backend's update_all already
       // landed true — would silently clobber it back to false: a lost update,
       // not a theoretical one (see scripts/objective-closed-action-adr.md in the
-      // backend repo). Re-reading right before the write on tx's own connection
-      // (not db's separate pooled one — see the validators comment below for why
-      // that distinction matters) shrinks that window to as small as this
-      // function can make it.
+      // backend repo).
+      //
+      // Re-reading on tx's own connection (not db's separate pooled one — see
+      // the validators comment below for why that distinction matters) narrows
+      // that window as far as this function can, but does not close it: under
+      // Postgres's default READ COMMITTED isolation this is a plain SELECT
+      // taking no row lock, so backend's update_all can still commit between
+      // this read and this transaction's write. What makes that residual race
+      // unreachable today is a separate mechanism: complete_objective/2 refuses
+      // to mark an objective complete until every one of its actions already
+      // reads is_completed: true on chain, so by the time completion can
+      // succeed at all, event-source has already durably written every action's
+      // row once. Keep the re-read — it shrinks the window on its own merits —
+      // but relaxing that backend guardrail would silently reopen the race.
       const freshObjective = await tx.objectives.findOne({ id: payload.data.objective_id })
-      data.effective_closed = freshObjective.is_completed
+      // freshObjective can legitimately come back null — the same chain<->DB
+      // id-drift class the audit found for actions 399-406 (objective row
+      // deleted, or never indexed). The backend guardrail above
+      // (complete_objective/2 refuses completion while any action is still
+      // chain-open) makes that very unlikely mid-transaction, but falling back
+      // to `o` — fetched and null-checked at the top of this function — keeps
+      // the failure mode consistent with the rest of the file: log-and-continue,
+      // never crash-loop the whole indexer over one drifted row. Without the
+      // fallback an uncaught TypeError would roll back this transaction inside
+      // a .catch that logs AND rethrows, and the indexer would retry the same
+      // block forever — turning a rare drift into a total outage.
+      data.effective_closed = freshObjective ? freshObjective.is_completed : o.is_completed
 
       // Create path uses insert(), not save(): with an explicit id present save()
       // emits an UPDATE (matching nothing for a new id); insert() honors the id, and
