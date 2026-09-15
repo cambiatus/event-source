@@ -520,40 +520,36 @@ function upsertAction (db, payload, blockInfo, _context) {
     }
 
     return db.withTransaction(async tx => {
-      // effective_closed is read HERE — inside the transaction, on tx (not db),
-      // immediately before the write — rather than from the `o` fetched at the
-      // top of this function. Backend's Objectives.complete_objective/2 bulk-sets
-      // effective_closed=true for every action under an objective in one
-      // update_all when the FIRST of a multi-action completion's upsertactions
-      // confirms; this function is still processing actions 2..N at that point.
-      // Reading `o.is_completed` up there (fetched before the create-path's
-      // chain-id-resolution await, or before whatever else runs earlier in a
-      // busy indexer) would capture is_completed=false from before completion,
-      // and writing that stale value here — after backend's update_all already
-      // landed true — would silently clobber it back to false: a lost update,
-      // not a theoretical one (see scripts/objective-closed-action-adr.md in the
-      // backend repo).
+      // Parent-row lock — the FIRST statement in the transaction. FOR SHARE takes
+      // a row-level lock on this objective that conflicts with the backend's row
+      // lock when Objectives.complete_objective/2 flips objectives.is_completed
+      // (its Ecto.Multi.update on the objective row). The two writers serialize
+      // on that row: whichever commits first, the loser's re-read below sees the
+      // committed state under Postgres's default READ COMMITTED isolation, so
+      // this transaction can never write effective_closed from a pre-completion
+      // snapshot (the stale-snapshot insert that produced the duplicate action).
       //
-      // Re-reading on tx's own connection (not db's separate pooled one — see
-      // the validators comment below for why that distinction matters) narrows
-      // that window as far as this function can, but does not close it: under
-      // Postgres's default READ COMMITTED isolation this is a plain SELECT
-      // taking no row lock, so backend's update_all can still commit between
-      // this read and this transaction's write. What makes that residual race
-      // unreachable today is a separate mechanism: complete_objective/2 refuses
-      // to mark an objective complete until every one of its actions already
-      // reads is_completed: true on chain, so by the time completion can
-      // succeed at all, event-source has already durably written every action's
-      // row once. Keep the re-read — it shrinks the window on its own merits —
-      // but relaxing that backend guardrail would silently reopen the race.
-      const freshObjective = await tx.objectives.findOne({ id: payload.data.objective_id })
-      // freshObjective can legitimately come back null — the same chain<->DB
-      // id-drift class the audit found for actions 399-406 (objective row
-      // deleted, or never indexed). The backend guardrail above
-      // (complete_objective/2 refuses completion while any action is still
-      // chain-open) makes that very unlikely mid-transaction, but falling back
-      // to `o` — fetched and null-checked at the top of this function — keeps
-      // the failure mode consistent with the rest of the file: log-and-continue,
+      // Trade-off, stated honestly: the lock is held until THIS transaction
+      // commits, so it can briefly block the backend's completion UPDATE. The
+      // backend bounds that wait with a lock_timeout on its finalize
+      // transaction (5s) plus Oban retry, so a stalled indexer tx cannot block
+      // finalization forever. There is no lock-ordering deadlock: the objective
+      // row is the first and only row lock each objective-scoped writer takes,
+      // on both sides.
+      //
+      // Read via tx.instance.oneOrNone — NOT .one. pg-promise's .one throws on
+      // zero rows, which would roll this block back and crash-loop the whole
+      // indexer on a drifted/never-indexed objective row (the same chain<->DB
+      // id-drift class the audit found for actions 399-406). oneOrNone returns
+      // null instead; the fallback below keeps the failure mode log-and-continue,
+      // consistent with the rest of the file.
+      const freshObjective = await tx.instance.oneOrNone(
+        'SELECT id, is_completed FROM objectives WHERE id = $1 FOR SHARE',
+        [payload.data.objective_id]
+      )
+      // freshObjective can legitimately come back null — the objective row was
+      // deleted, or never indexed. Falling back to `o` (fetched and null-checked
+      // at the top of this function) keeps the failure mode log-and-continue,
       // never crash-loop the whole indexer over one drifted row. Without the
       // fallback an uncaught TypeError would roll back this transaction inside
       // a .catch that logs AND rethrows, and the indexer would retry the same
