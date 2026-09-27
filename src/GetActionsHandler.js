@@ -45,13 +45,16 @@ class GetActionsHandler extends MassiveActionHandler {
   // crash with a duplicate key violation since that table has no upsert support.
   async updateIndexState (state, block, isReplay, context) {
     const { blockInfo } = block
-    const fromDb = (await state._index_state.findOne({ id: 1 })) || {}
-    const toSave = Object.assign({}, fromDb, {
-      block_number: blockInfo.blockNumber,
-      block_hash: blockInfo.blockHash,
-      is_replay: isReplay
-    })
-    await state._index_state.save(toSave)
+    // demux reads the resume point from row id=1 only (loadIndexState). Upsert
+    // that row explicitly: a save() without an id — what an empty table gave —
+    // inserted a fresh serial row per block, so id=1 never existed and every
+    // restart replayed from block 1.
+    await state.instance.none(
+      `INSERT INTO _index_state (id, block_number, block_hash, is_replay) VALUES (1, $1, $2, $3)
+       ON CONFLICT (id) DO UPDATE SET block_number = EXCLUDED.block_number,
+         block_hash = EXCLUDED.block_hash, is_replay = EXCLUDED.is_replay`,
+      [blockInfo.blockNumber, blockInfo.blockHash, isReplay]
+    )
     await state.instance.none(
       'INSERT INTO _block_number_txid (block_number, txid) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [blockInfo.blockNumber, context.txid]
