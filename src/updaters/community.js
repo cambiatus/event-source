@@ -700,7 +700,19 @@ async function claimAction (db, payload, blockInfo, context) {
   // catches it, un-claims this action's global_seq in _processed_actions so a
   // later reindex can pick it up, and pages via Sentry. It is therefore
   // impossible for a resolve failure to reach the INSERT below with a serial id.
-  const { watermark } = await db.instance.one('SELECT coalesce(max(id), 0) AS watermark FROM claims')
+  //
+  // The watermark is the highest claim id recorded AT OR BEFORE this block, not the
+  // table-wide max. Indexing live, the two are the same number (nothing later exists
+  // yet). On a reindex they differ: the table-wide max sits above every claim the
+  // replay revisits, so a claim skipped by a ResolveError could never be resolved —
+  // the lookup started above its id and threw again. Bounding by block puts the
+  // watermark back where it stood when the claim was first seen. A same-block claim
+  // recorded after this one can still push it too high; that only throws (skip and
+  // retry), never resolves to a wrong id.
+  const { watermark } = await db.instance.one(
+    'SELECT coalesce(max(id), 0) AS watermark FROM claims WHERE created_block <= $1',
+    [blockInfo.blockNumber]
+  )
   let claimId
   try {
     claimId = await resolveClaimId(
