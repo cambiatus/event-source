@@ -135,8 +135,8 @@ async function claimPage (communityContract, lowerBound, limit) {
 // ascending, never reused and never deleted (verifyclaim only mutates status).
 // event-source processes actions in chain order, so the claim created by the
 // action being processed is the FIRST claim on chain for this (action, claimer)
-// with an id above every claim id already recorded — `afterId`, the DB's current
-// max claim id.
+// with an id above every claim id already recorded up to this block — `afterId`,
+// the DB's max claim id with created_block <= the action's block (see claimAction).
 //
 // Reading forward from a watermark, rather than counting a pair's claims and
 // taking the nth, is what makes this safe under truncation: a short page just
