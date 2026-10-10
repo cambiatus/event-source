@@ -143,7 +143,12 @@ async function updateCommunity (db, payload, blockInfo, context) {
       has_kyc: payload.data.has_kyc === 1,
       auto_invite: payload.data.auto_invite === 1,
       subdomain_id: subdomain.id,
-      website: payload.data.website === '' ? null : payload.data.website
+      website: payload.data.website === '' ? null : payload.data.website,
+      // Provenance for the backend's `communities_changed` trigger: it tells the
+      // Wallet whose signed `update` just landed. The columns come from the backend
+      // migration (P2w W3a), which must be live before this ships.
+      last_tx: payload.transactionId,
+      last_eos_account: payload.authorization[0].actor
     }
 
     // Find the community
