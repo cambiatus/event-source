@@ -50,11 +50,11 @@ CREATE FUNCTION public.shop_draw_from_batch(p_product_id bigint, p_quantity inte
 RETURNS bigint LANGUAGE plpgsql AS $$
 DECLARE v_batch_id bigint;
 BEGIN
-  PERFORM 1 FROM products WHERE id = p_product_id FOR NO KEY UPDATE;
-  UPDATE product_batches SET remaining = remaining - p_quantity
+  PERFORM 1 FROM public.products WHERE id = p_product_id FOR NO KEY UPDATE;
+  UPDATE public.product_batches SET remaining = remaining - p_quantity
    WHERE product_id = p_product_id AND closed_at IS NULL
      AND opens_at <= p_at AND closes_at > p_at
-     AND remaining >= p_quantity
+     AND remaining >= p_quantity AND p_quantity > 0
   RETURNING id INTO v_batch_id;
   RETURN v_batch_id;
 END $$;`
