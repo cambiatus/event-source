@@ -7,6 +7,70 @@ const config = require(`../config/${process.env.NODE_ENV || 'dev'}`)
 const { resolveClaimId, resolveCreatedActionId, resolveCreatedObjectiveId, ResolveError } = require('../chain')
 const { toUTC } = require('../dates')
 
+// S5a-es (plan §9): an Elm purchase of a batch offer takes its units from the live batch
+// through the backend's frozen DB function. Transient database errors are retried; anything
+// else fails soft (order recorded unassigned) so a draw problem never halts the indexer.
+const DRAW_TRANSIENT_CODES = ['40P01', '40001', '55P03']
+const DRAW_MAX_RETRIES = 3
+const DRAW_RETRY_DELAY_MS = 50
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+// Startup check, re-run after every draw error: the draw function and the
+// order_items.draw_outcome column must exist (massive reads the schema once at startup and
+// rejects unknown columns). The hourly cron greps the log for 'S5 draw function missing';
+// indexing carries on regardless.
+async function checkDrawFunction (db) {
+  try {
+    const row = await db.instance.one(
+      `SELECT to_regprocedure('public.shop_draw_from_batch(bigint,integer,timestamp)') IS NOT NULL AS has_function,
+              EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_schema = 'public' AND table_name = 'order_items'
+                         AND column_name = 'draw_outcome') AS has_column`
+    )
+    if (!row.has_function || !row.has_column) {
+      console.error(`S5 draw function missing (function: ${row.has_function}, order_items.draw_outcome: ${row.has_column})`)
+      return false
+    }
+    return true
+  } catch (e) {
+    logError('S5 draw function check failed', e)
+    return false
+  }
+}
+
+// Draw `units` from the batch live at `at` (the block's time, never the wall clock).
+// Each attempt is a savepoint (a nested pg-promise transaction), so a failed draw rolls
+// back only itself and the outer transaction carries on.
+// Resolves { batchId, outcome } with outcome 'drawn' | 'no_fit' | 'error'.
+async function drawFromBatch (tx, productId, units, at) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const row = await tx.instance.tx(async sp => {
+        const { previous } = await sp.one(`SELECT current_setting('lock_timeout') AS previous`)
+        await sp.none(`SET LOCAL lock_timeout = '2s'`)
+        const drawn = await sp.oneOrNone(
+          'SELECT public.shop_draw_from_batch($1, $2, $3) AS batch_id',
+          [productId, units, at]
+        )
+        // SET LOCAL outlives a released savepoint; put the caller's timeout back.
+        await sp.one(`SELECT set_config('lock_timeout', $1, true)`, [previous])
+        return drawn
+      })
+      const batchId = row && row.batch_id != null ? row.batch_id : null
+      return { batchId, outcome: batchId === null ? 'no_fit' : 'drawn' }
+    } catch (e) {
+      if (DRAW_TRANSIENT_CODES.includes(e.code) && attempt < DRAW_MAX_RETRIES) {
+        await sleep(DRAW_RETRY_DELAY_MS)
+        continue
+      }
+      logError('S5 draw failed; order recorded unassigned', e)
+      await checkDrawFunction(tx)
+      return { batchId: null, outcome: 'error' }
+    }
+  }
+}
+
 async function createCommunity (db, payload, blockInfo) {
   console.log(`Cambiatus >>> Create Community`, blockInfo.blockNumber)
 
@@ -245,16 +309,24 @@ async function transferSale (db, payload, blockInfo, context) {
     })
     if (Number(existing) > 0) return
 
-    const whereArg = {
-      id: payload.data.sale_id,
-      is_deleted: false
-    }
+    const whereArg = { id: payload.data.sale_id }
 
-    // Find sale
+    // Find sale. Deleted offers are still found: a purchase signed just as the seller
+    // deleted the offer is recorded like any other. A product that truly doesn't exist
+    // is a ResolveError (skipped, paged, re-indexable) rather than a crash loop.
     const sale = await tx.products.findOne(whereArg)
     if (sale === null) {
-      throw new Error('No sale data available')
+      throw new ResolveError(`transfersale: product ${payload.data.sale_id} not found`)
     }
+
+    const quantity = parseInt(payload.data.units) || 1
+
+    // Batch offers draw from the live batch at the block's time (a batch offer has
+    // track_stock false, so the units decrement below is skipped). The replay guard above
+    // already ran, so re-indexing a block never draws twice.
+    const draw = sale.availability === 'batches'
+      ? await drawFromBatch(tx, sale.id, quantity, toUTC(blockInfo.timestamp))
+      : null
 
     if (sale.track_stock) {
       const newUnits = sale.units - parseInt(payload.data.units)
@@ -290,8 +362,7 @@ async function transferSale (db, payload, blockInfo, context) {
 
     // Write the matching line item. Kept inside the same guarded path so a
     // replay that hits orders_dedup_idx above never reaches this insert.
-    const quantity = parseInt(payload.data.units) || 1
-    await tx.order_items.insert({
+    const item = {
       order_id: order.id,
       product_id: sale.id,
       quantity: quantity,
@@ -299,7 +370,13 @@ async function transferSale (db, payload, blockInfo, context) {
       title_snapshot: sale.title,
       inserted_at: toUTC(blockInfo.timestamp),
       updated_at: toUTC(blockInfo.timestamp)
-    })
+    }
+    // Only batch offers carry the new keys; every other insert is exactly as before.
+    if (draw !== null) {
+      item.batch_id = draw.batchId
+      item.draw_outcome = draw.outcome
+    }
+    await tx.order_items.insert(item)
   }
 
   // Return the transaction so ledgered() can await it. Without the return the updater
@@ -936,6 +1013,7 @@ async function assignRole (db, payload, blockInfo, _context) {
 }
 
 module.exports = {
+  checkDrawFunction,
   createCommunity,
   updateCommunity,
   netlink,

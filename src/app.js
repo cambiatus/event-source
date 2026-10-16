@@ -6,6 +6,7 @@ const { GetActionsHandler } = require('./GetActionsHandler')
 const { logInit, logExit } = require('./logging')
 
 const updaters = require('./updaters')
+const { checkDrawFunction } = require('./updaters/community')
 const effects = []
 
 const http = require('http')
@@ -41,6 +42,10 @@ async function init () {
          processed_at timestamptz NOT NULL DEFAULT now()
        )`
     )
+
+    // S5: log 'S5 draw function missing' if the backend's draw function or
+    // order_items.draw_outcome isn't there; indexing carries on either way.
+    await checkDrawFunction(db)
 
     const actionHandler = new GetActionsHandler(
       updaters,
