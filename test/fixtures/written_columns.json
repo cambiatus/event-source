@@ -1,0 +1,43 @@
+{
+  "_comment": "Columns event-source writes (transferSale). The same file is committed in the event-source repo. orders and order_items are inserted by the indexer, so any NOT NULL column without a default must be listed; products is only updated. batch_id and draw_outcome are written by S5a-es, only for batch offers.",
+  "orders": {
+    "insert": true,
+    "columns": {
+      "product_id": "bigint",
+      "from_id": "character varying",
+      "to_id": "character varying",
+      "amount": "double precision",
+      "units": "integer",
+      "community_id": "character varying",
+      "status": "character varying",
+      "origin": "character varying",
+      "total_token": "numeric",
+      "created_block": "integer",
+      "created_tx": "character varying",
+      "created_at": "timestamp without time zone",
+      "created_eos_account": "character varying",
+      "inserted_at": "timestamp without time zone",
+      "updated_at": "timestamp without time zone"
+    }
+  },
+  "order_items": {
+    "insert": true,
+    "columns": {
+      "order_id": "bigint",
+      "product_id": "bigint",
+      "batch_id": "bigint",
+      "quantity": "integer",
+      "unit_price_token": "numeric",
+      "title_snapshot": "character varying",
+      "draw_outcome": "character varying",
+      "inserted_at": "timestamp without time zone",
+      "updated_at": "timestamp without time zone"
+    }
+  },
+  "products": {
+    "insert": false,
+    "columns": {
+      "units": "integer"
+    }
+  }
+}
