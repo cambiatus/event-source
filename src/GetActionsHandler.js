@@ -12,10 +12,16 @@ class GetActionsHandler extends MassiveActionHandler {
       await this.refreshIndexState()
     }
 
-    // Skip if we've already processed this exact block
+    // Skip an empty re-delivery of the block we just processed. One that carries actions
+    // is the rest of that block: GetActionsReader splits a block when a 100-action batch
+    // ends inside it, or when one contract's fetch saw the block and another's didn't yet.
+    // Both parts share the synthetic hash, so skipping on the hash alone dropped the second
+    // part for good (prod, block 437155575: a transfersale). Applying it is safe: the reader
+    // never re-sends a seen action, and every updater is ledgered on global_action_seq.
     if (
       blockInfo.blockNumber === this.lastProcessedBlockNumber &&
-      blockInfo.blockHash === this.lastProcessedBlockHash
+      blockInfo.blockHash === this.lastProcessedBlockHash &&
+      (!block.actions || block.actions.length === 0)
     ) {
       return [false, 0]
     }
