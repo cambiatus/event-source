@@ -12,7 +12,9 @@ const {
   verifyClaim,
   claimAction,
   upsertRole,
-  assignRole
+  assignRole,
+  setActLimit,
+  seedMbrClaim
 } = require('./updaters/community.js')
 const {
   createToken,
@@ -136,6 +138,14 @@ const updaters = [
   {
     actionType: `${config.blockchain.contract.community}::assignroles`,
     updater: assignRole
+  },
+  {
+    actionType: `${config.blockchain.contract.community}::setactlimit`,
+    updater: setActLimit
+  },
+  {
+    actionType: `${config.blockchain.contract.community}::seedmbrclm`,
+    updater: seedMbrClaim
   },
   // ======== Token
   {
