@@ -3,7 +3,7 @@
 // Run with: NODE_ENV=lane node src/app.js
 console.log('Loaded Lane configs')
 
-const forbidden = ['cambiatus_local', 'cambiatus_dev']
+const forbidden = ['cambiatus_local', 'cambiatus_dev', 'cambiatus_mirror', 'cambiatus_review']
 const url = process.env.CHAIN_URL || 'http://127.0.0.1:8899'
 if (url.includes(':8888') || forbidden.includes(process.env.PGDATABASE || '')) {
   throw new Error('lane config refuses the shared chain (:8888) and the shared DBs')
