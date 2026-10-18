@@ -6,6 +6,7 @@ const {
 const config = require(`../config/${process.env.NODE_ENV || 'dev'}`)
 const { resolveClaimId, resolveCreatedActionId, resolveCreatedObjectiveId, ResolveError } = require('../chain')
 const { toUTC } = require('../dates')
+const claimMirror = require('../claim_mirror')
 
 // S5a-es (plan §9): an Elm purchase of a batch offer takes its units from the live batch
 // through the backend's frozen DB function. Transient database errors are retried; anything
@@ -706,6 +707,8 @@ async function reward (db, payload, blockInfo, context) {
   })
   if (Number(existing) > 0) return
 
+  await claimMirror.rewarded(db, payload.data.receiver, payload.data.action_id, blockInfo.blockNumber)
+
   // Collect the action
   return db.actions
     .findOne(payload.data.action_id)
@@ -826,6 +829,7 @@ async function claimAction (db, payload, blockInfo, context) {
   await db.claims
     .insert(data)
     .catch(e => logError('Something went wrong while inserting a claim', e))
+  await claimMirror.claimOpened(db, payload.data.maker, payload.data.action_id, blockInfo.blockNumber)
 }
 
 async function verifyClaim (db, payload, blockInfo, context) {
@@ -911,6 +915,13 @@ async function verifyClaim (db, payload, blockInfo, context) {
   }
 
   await db.claims.update(claim.id, { status })
+
+  // Mirror the contract's mbrclaim close. Only the first pending → final transition
+  // counts; on a replay claim.status is already final and this is skipped. Not gated on
+  // usages: the contract counts every action.
+  if (claim.status === 'pending' && status !== 'pending') {
+    await claimMirror.claimClosed(db, claim.claimer_id, claim.action_id, status === 'approved', blockInfo.timestamp, blockInfo.blockNumber)
+  }
   console.log(`Cambiatus >>> Claim Verification: Status Updated to: ${status}`)
 
   // Decrement usages_left exactly once, on the first pending -> resolved transition. On a
@@ -946,6 +957,30 @@ async function upsertRole (db, payload, blockInfo, _context) {
     await db.roles.save(roleData)
   } catch (error) {
     logError('Something went wrong while updating role', error)
+  }
+}
+
+async function setActLimit (db, payload, blockInfo, _context) {
+  console.log('Cambiatus >>> Set action claim limit', blockInfo.blockNumber)
+  const actionId = Number(payload.data.action_id)
+  const max = Number(payload.data.max_per_account)
+
+  const action = await db.actions.findOne({ id: actionId })
+  if (action == null) {
+    // The create's id resolution failed earlier; writing now would guess. Skip + page.
+    throw new ResolveError(`setactlimit: action ${actionId} not indexed (block ${blockInfo.blockNumber})`)
+  }
+
+  const data = max === 0
+    ? { max_claims_per_account: null, reclaim_cooldown_seconds: null }
+    : { max_claims_per_account: max, reclaim_cooldown_seconds: Number(payload.data.reclaim_cooldown) }
+  await db.actions.update({ id: actionId }, data)
+}
+
+async function seedMbrClaim (db, payload, blockInfo, _context) {
+  console.log('Cambiatus >>> Seed member claim counts', blockInfo.blockNumber)
+  for (const row of payload.data.rows) {
+    await claimMirror.seeded(db, payload.data.member, row, blockInfo.blockNumber)
   }
 }
 
@@ -1024,5 +1059,7 @@ module.exports = {
   verifyClaim,
   claimAction,
   upsertRole,
-  assignRole
+  assignRole,
+  setActLimit,
+  seedMbrClaim
 }
