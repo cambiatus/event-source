@@ -1,8 +1,10 @@
 /* eslint-env mocha */
-// GetActionsReader can hand over one block in two parts: a 100-action batch that ends
+// GetActionsReader used to hand over one block in two parts: a 100-action batch that ends
 // mid-block, or a block that one contract's fetch saw and another's didn't yet (prod lost
 // a cambiatus.cm::transfersale this way on 2026-10-14, block 437155575). Both parts carry
-// the same synthetic hash, so the handler must still apply the second part.
+// the same synthetic hash, so the handler must still apply the second part. The reader now
+// holds a block back until it is whole (see reader_whole_blocks.test.js); the handler keeps
+// this safety net.
 // No database: handleWithState is stubbed to record which blocks reach the updaters.
 const assert = require('assert')
 const { GetActionsHandler } = require('../src/GetActionsHandler')
@@ -27,7 +29,8 @@ function handler () {
   h.lastProcessedBlockNumber = 100
   h.lastProcessedBlockHash = 'synthetic-100'
   h.handleWithState = async () => {
-    h.handled.push(h.pending.actions.map(a => a.type))
+    // Like the real handler, an empty block never reaches the updaters.
+    if (h.pending.actions.length > 0) h.handled.push(h.pending.actions.map(a => a.type))
     h.lastProcessedBlockNumber = h.pending.blockInfo.blockNumber
     h.lastProcessedBlockHash = h.pending.blockInfo.blockHash
   }
@@ -77,44 +80,60 @@ describe('GetActionsReader + GetActionsHandler: a block that lands between two c
     }
   }
 
-  // polls: one entry per _loadNextBatch, mapping contract -> the rows its fetch returns.
-  function reader (polls) {
+  // polls: one entry per _loadNextBatch, mapping contract -> the rows its fetch returns (a
+  // fetch always starts at the contract's first unconsumed seq, so rows above the limit repeat).
+  // heads: the last_irreversible_block the node reports in each batch's responses.
+  function reader (polls, heads) {
     const r = new GetActionsReader('http://history.test', ['cambiatus.cm', 'cambiatus.tk'], 1)
     r.initialized = true
     r.seqPositions = { 'cambiatus.cm': 0, 'cambiatus.tk': 0 }
     r.currentBlockNumber = 100
+    r._headRefreshedAt = Date.now() // nextBlock's own head read stays cached
+    r.headBlockNumber = 100
     let poll = -1
     r._post = async (path, body) => {
-      if (path === '/v1/chain/get_info') return { head_block_num: 200 }
-      if (body.account_name === 'cambiatus.cm') poll++
-      return { actions: (polls[poll] || {})[body.account_name] || [] }
+      if (body.account_name === 'cambiatus.cm') poll++ // cm is fetched first in every batch
+      return {
+        actions: (polls[poll] || {})[body.account_name] || [],
+        last_irreversible_block: heads[Math.min(poll, heads.length - 1)]
+      }
     }
     return r
   }
 
-  async function run (polls, steps) {
-    const r = reader(polls)
+  // The watcher loop, once per poll: nextBlock until it reports no new block.
+  async function run (polls, heads) {
+    const r = reader(polls, heads)
     const h = handler()
-    for (let i = 0; i < steps; i++) {
-      const [b] = await r.nextBlock()
-      await h.deliver(b)
+    for (let i = 0; i < polls.length; i++) {
+      for (;;) {
+        const [b, , isNew] = await r.nextBlock()
+        if (!isNew) break
+        await h.deliver(b)
+      }
     }
     return h.handled
   }
 
-  it('applies the vote that arrives on the next poll', async () => {
+  it('hands the block over once, whole, when the vote arrives on the next poll', async () => {
     const handled = await run([
       { 'cambiatus.tk': [row('cambiatus.tk', 'issue', 101, 0, 2), row('cambiatus.tk', 'transfer', 101, 1, 3)] },
-      { 'cambiatus.cm': [row('cambiatus.cm', 'verifyclaim', 101, 0, 1)] }
-    ], 2)
-    assert.deepStrictEqual(handled, [['cambiatus.tk::issue', 'cambiatus.tk::transfer'], ['cambiatus.cm::verifyclaim']])
+      {
+        'cambiatus.cm': [row('cambiatus.cm', 'verifyclaim', 101, 0, 1)],
+        'cambiatus.tk': [row('cambiatus.tk', 'issue', 101, 0, 2), row('cambiatus.tk', 'transfer', 101, 1, 3)]
+      }
+    ], [100, 101])
+    assert.deepStrictEqual(handled, [['cambiatus.cm::verifyclaim', 'cambiatus.tk::issue', 'cambiatus.tk::transfer']])
   })
 
-  it('applies the vote when the token fetch already saw a later block', async () => {
+  it('holds back only the blocks the snapshot does not cover', async () => {
     const handled = await run([
       { 'cambiatus.tk': [row('cambiatus.tk', 'issue', 101, 0, 2), row('cambiatus.tk', 'transfer', 102, 1, 4)] },
-      { 'cambiatus.cm': [row('cambiatus.cm', 'verifyclaim', 101, 0, 1)] }
-    ], 3)
-    assert.deepStrictEqual(handled, [['cambiatus.tk::issue'], ['cambiatus.tk::transfer'], ['cambiatus.cm::verifyclaim']])
+      {
+        'cambiatus.cm': [row('cambiatus.cm', 'verifyclaim', 101, 0, 1)],
+        'cambiatus.tk': [row('cambiatus.tk', 'issue', 101, 0, 2), row('cambiatus.tk', 'transfer', 102, 1, 4)]
+      }
+    ], [100, 102])
+    assert.deepStrictEqual(handled, [['cambiatus.cm::verifyclaim', 'cambiatus.tk::issue'], ['cambiatus.tk::transfer']])
   })
 })
