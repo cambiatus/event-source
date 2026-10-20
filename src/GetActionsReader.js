@@ -6,6 +6,16 @@ const { AbstractActionReader } = require('demux')
 const HEAD_REFRESH_MS = 2000
 const BATCH_SIZE = 100
 
+// The start of a node response, for error messages.
+function excerpt (body) {
+  return JSON.stringify(body).slice(0, 200)
+}
+
+// An error body (429 Busy, 500...) has no actions array; it must never pass for an empty page.
+function assertActions (contract, result) {
+  if (!Array.isArray(result.actions)) throw new Error(`get_actions for ${contract} returned no actions array: ${excerpt(result)}`)
+}
+
 class GetActionsReader extends AbstractActionReader {
   constructor (nodeUrl, contracts, startAtBlock) {
     super(startAtBlock)
@@ -51,6 +61,8 @@ class GetActionsReader extends AbstractActionReader {
     if (now - this._headRefreshedAt > HEAD_REFRESH_MS) {
       try {
         const info = await this._post('/v1/chain/get_info', {})
+        // An error body (429 Busy...) has no head_block_num: keep the cached value.
+        if (!Number.isSafeInteger(info.head_block_num)) throw new Error(`get_info returned no head_block_num: ${excerpt(info)}`)
         this.headBlockNumber = info.head_block_num
         this._headRefreshedAt = now
       } catch (e) {
@@ -85,7 +97,9 @@ class GetActionsReader extends AbstractActionReader {
   // Binary search: first account_action_seq where block_num >= fromBlock
   async _findSeqForBlock (contract, fromBlock) {
     const lastResult = await this._fetchActions(contract, -1, -1)
-    if (!lastResult.actions || lastResult.actions.length === 0) return 0
+    // An error body is not an empty history: returning 0 would re-read it all.
+    assertActions(contract, lastResult)
+    if (lastResult.actions.length === 0) return 0
 
     const last = lastResult.actions[0]
     if (last.block_num < fromBlock) {
@@ -99,7 +113,8 @@ class GetActionsReader extends AbstractActionReader {
     while (lo < hi) {
       const mid = Math.floor((lo + hi) / 2)
       const result = await this._fetchActions(contract, mid, 1)
-      if (!result.actions || result.actions.length === 0) { hi = mid; continue }
+      assertActions(contract, result)
+      if (result.actions.length === 0) { hi = mid; continue }
       if (result.actions[0].block_num < fromBlock) {
         lo = mid + 1
       } else {
@@ -122,15 +137,6 @@ class GetActionsReader extends AbstractActionReader {
     await this._initSeqPositions(this.startAtBlock)
     this.initialized = true
     console.info('GetActionsReader: ready')
-  }
-
-  // Fresh head from the node that serves get_actions, bypassing the 2 s cache. Throws on
-  // failure: a batch without a trustworthy snapshot must not run.
-  async _freshHead () {
-    const info = await this._post('/v1/chain/get_info', {})
-    this.headBlockNumber = info.head_block_num
-    this._headRefreshedAt = Date.now()
-    return info.head_block_num
   }
 
   // Appends the rows at or below `limit` to pendingActions and advances the contract's sequence.
@@ -176,19 +182,20 @@ class GetActionsReader extends AbstractActionReader {
   }
 
   // Loads the next page(s) of every contract and sets emitLimit: the highest block whose
-  // actions are all loaded. Contracts are fetched one after another, so a block can show up
-  // in one contract's page and not yet in another's; handing it over then would split it.
-  // The head snapshot is taken BEFORE the fetches: every action of a block <= snapshot is
-  // already in history, whichever contract is fetched first. A full page proves nothing past
-  // its last row, so that contract only vouches for blocks before it.
+  // actions are all loaded and final. Contracts are fetched one after another, so a block can
+  // show up in one contract's page and not yet in another's; handing it over then would split it.
+  // Every get_actions response carries the node's last_irreversible_block, read atomically with
+  // its rows: a block <= it is final and complete in that response. The limit is the minimum
+  // over all responses of the batch. A page that ends early (full, or cut off by the node's
+  // time limit) proves nothing past its last row, so that contract only vouches for blocks
+  // before it.
   //
   // Rows above the limit are never consumed. The history node runs speculative, so it can
   // serve rows of the pending block (head + 1): provisional, they may land in a later block
   // or never. They are dropped here and refetched next poll with their final data.
   // Nothing is ingested until every fetch has succeeded, so a failure leaves no partial state.
   async _loadNextBatch () {
-    const snapshotHead = await this._freshHead()
-    let limit = snapshotHead
+    let limit = Infinity
     const fetched = []
 
     for (const contract of this.contracts) {
@@ -198,14 +205,21 @@ class GetActionsReader extends AbstractActionReader {
         const result = await this._fetchActions(contract, pos, BATCH_SIZE)
         // An error body is not an empty page: treating it as one would raise the limit
         // over blocks this contract never delivered. Throw; nextBlock retries next poll.
-        if (!Array.isArray(result.actions)) throw new Error(`get_actions for ${contract} returned no actions array: ${JSON.stringify(result).slice(0, 200)}`)
+        assertActions(contract, result)
+        if (!Number.isSafeInteger(result.last_irreversible_block)) throw new Error(`get_actions for ${contract} returned no last_irreversible_block: ${excerpt(result)}`)
+        limit = Math.min(limit, result.last_irreversible_block)
         const page = result.actions
+        const cutShort = result.time_limit_exceeded_error === true
+        if (cutShort && page.length === 0) throw new Error(`get_actions for ${contract} timed out without a row at seq ${pos}`)
+        if (page.length === 0) break
+        // get_actions returns from `pos` forward; a lower first seq means the node ignored it.
+        if (page[0].account_action_seq < pos) throw new Error(`get_actions for ${contract} ignored pos: asked ${pos}, got ${page[0].account_action_seq}`)
         rows.push(...page)
-        if (page.length < BATCH_SIZE) break
+        if (page.length < BATCH_SIZE && !cutShort) break
 
         const last = page[page.length - 1]
         pos = last.account_action_seq + 1
-        // A full page inside one block says nothing about where that block ends: read on.
+        // A page inside one block says nothing about where that block ends: read on.
         if (page[0].block_num === last.block_num) continue
         limit = Math.min(limit, last.block_num - 1)
         break
@@ -213,6 +227,7 @@ class GetActionsReader extends AbstractActionReader {
       fetched.push(rows)
     }
 
+    if (!Number.isSafeInteger(limit)) throw new Error(`no usable block limit: ${limit}`)
     this.contracts.forEach((contract, i) => this._ingest(contract, i, fetched[i], limit))
     this.emitLimit = limit
 
@@ -265,9 +280,10 @@ class GetActionsReader extends AbstractActionReader {
         : this._returnSyntheticBlock(targetBlock)
     }
 
-    // Nothing complete left — jump to emitLimit (the head, unless a full page holds it back)
-    // so the watcher exits the polling loop. Never backwards, never past emitLimit.
-    this.currentBlockNumber = Math.max(this.currentBlockNumber, this.emitLimit)
+    // Nothing complete left — jump to emitLimit (the last irreversible block, unless a short
+    // page holds it back) so the watcher exits the polling loop. Never backwards, never past
+    // emitLimit.
+    if (Number.isSafeInteger(this.emitLimit)) this.currentBlockNumber = Math.max(this.currentBlockNumber, this.emitLimit)
     this.currentBlockData = this._syntheticBlock(this.currentBlockNumber)
     this.isFirstBlock = false
     return [this.currentBlockData, false, false] // isNewBlock=false → watcher breaks

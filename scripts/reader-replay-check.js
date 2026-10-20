@@ -66,7 +66,7 @@ async function dump (api, from, to) {
         if (a.block_num > to) { done = true; break }
         if (a.action_trace.act.account === contract) rows.set(a.global_action_seq, { block: a.block_num, contract })
       }
-      if (page.length < 100) done = true
+      if (page.length === 0 || (page.length < 100 && res.time_limit_exceeded_error !== true)) done = true
       else pos = page[page.length - 1].account_action_seq + 1
     }
   }

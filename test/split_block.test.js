@@ -82,21 +82,21 @@ describe('GetActionsReader + GetActionsHandler: a block that lands between two c
 
   // polls: one entry per _loadNextBatch, mapping contract -> the rows its fetch returns (a
   // fetch always starts at the contract's first unconsumed seq, so rows above the limit repeat).
-  // heads: the head get_info reports at the start of each batch (the reader's snapshot).
+  // heads: the last_irreversible_block the node reports in each batch's responses.
   function reader (polls, heads) {
     const r = new GetActionsReader('http://history.test', ['cambiatus.cm', 'cambiatus.tk'], 1)
     r.initialized = true
     r.seqPositions = { 'cambiatus.cm': 0, 'cambiatus.tk': 0 }
     r.currentBlockNumber = 100
-    r._headRefreshedAt = Date.now() // nextBlock's own head read stays cached; only batches call get_info
+    r._headRefreshedAt = Date.now() // nextBlock's own head read stays cached
     r.headBlockNumber = 100
     let poll = -1
     r._post = async (path, body) => {
-      if (path === '/v1/chain/get_info') {
-        poll++
-        return { head_block_num: heads[Math.min(poll, heads.length - 1)] }
+      if (body.account_name === 'cambiatus.cm') poll++ // cm is fetched first in every batch
+      return {
+        actions: (polls[poll] || {})[body.account_name] || [],
+        last_irreversible_block: heads[Math.min(poll, heads.length - 1)]
       }
-      return { actions: (polls[poll] || {})[body.account_name] || [] }
     }
     return r
   }

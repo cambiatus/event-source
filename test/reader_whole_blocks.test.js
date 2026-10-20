@@ -23,14 +23,24 @@ function rows (contract, list, from = 0) {
 }
 
 // A node whose state the test mutates between polls. history[contract] is the full list the
-// node would serve right now; get_info reports `head`.
+// node would serve right now. Like nodeos' history API: a get_actions with `offset` N returns up
+// to N + 1 rows (pos..pos+N inclusive), and every response carries last_irreversible_block
+// (`lib`, defaulting to `head`). `cut[contract] = n` makes the node stop after n rows with
+// time_limit_exceeded_error when it has more. get_info reports `head`.
 function fakeNode () {
-  const node = { head: 100, history: {}, fetches: [] }
+  const node = { head: 100, lib: null, cut: {}, history: {}, fetches: [] }
   for (const c of CONTRACTS) node.history[c] = []
   node.post = async (path, body) => {
     if (path === '/v1/chain/get_info') return { head_block_num: node.head }
     node.fetches.push([body.account_name, body.pos])
-    return { actions: node.history[body.account_name].slice(body.pos, body.pos + body.offset) }
+    let actions = node.history[body.account_name].slice(body.pos, body.pos + body.offset + 1)
+    const response = { last_irreversible_block: node.lib === null ? node.head : node.lib }
+    const cut = node.cut[body.account_name]
+    if (cut !== undefined && actions.length > cut) {
+      actions = actions.slice(0, cut)
+      response.time_limit_exceeded_error = true
+    }
+    return { actions, ...response }
   }
   return node
 }
@@ -279,5 +289,104 @@ describe('GetActionsReader: whole blocks only', function () {
     r._post = async () => boom()
     const [, , isNew] = await quietly(() => r.nextBlock())
     assert.strictEqual(isNew, false)
+  })
+
+  it('takes the limit from last_irreversible_block, not from the head', async () => {
+    const node = fakeNode()
+    node.head = 105
+    node.lib = 101
+    node.history['cambiatus.cm'] = rows('cambiatus.cm', [['a', 101], ['b', 103]])
+    const r = reader(node)
+    assert.deepStrictEqual(withActions(await poll(r)).map(b => b.n), [101])
+    assert.strictEqual(r.seqPositions['cambiatus.cm'], 1)
+    node.lib = 103
+    assert.deepStrictEqual(withActions(await poll(r)).map(b => b.n), [103])
+  })
+
+  it('consumes nothing when a response has no last_irreversible_block, and recovers', async () => {
+    const node = fakeNode()
+    node.history['cambiatus.tk'] = rows('cambiatus.tk', [['transfer', 100]])
+    const r = reader(node, 99)
+    // rows but no last_irreversible_block: not a response to trust
+    failFirstFetch(r, node, 'cambiatus.tk', () => ({ actions: node.history['cambiatus.tk'] }))
+    await quietly(async () => assert.deepStrictEqual(withActions(await poll(r)), []))
+    assert.strictEqual(r.pendingActions.length, 0)
+    assert.strictEqual(r.seqPositions['cambiatus.tk'], 0)
+    assert.ok(Number.isSafeInteger(r.currentBlockNumber))
+    assert.deepStrictEqual(withActions(await poll(r)).map(b => b.n), [100])
+  })
+
+  it('does not let a get_info error body reach the limit or the current block', async () => {
+    const node = fakeNode()
+    node.history['cambiatus.tk'] = rows('cambiatus.tk', [['transfer', 101]]) // pending block, head 100
+    const r = reader(node)
+    const post = node.post
+    r._post = async (path, body) => path === '/v1/chain/get_info' ? { code: 429, message: 'Busy' } : post(path, body)
+    await quietly(async () => assert.deepStrictEqual(withActions(await poll(r)), []))
+    assert.strictEqual(r.seqPositions['cambiatus.tk'], 0)
+    assert.ok(Number.isSafeInteger(r.currentBlockNumber) && Number.isSafeInteger(r.emitLimit))
+    r._post = node.post
+    node.head = 101
+    assert.deepStrictEqual(withActions(await poll(r)).map(b => b.n), [101])
+  })
+
+  it('does not split a block when the node cuts a page short on time', async () => {
+    const node = fakeNode()
+    node.head = 200
+    node.history['cambiatus.cm'] = rows('cambiatus.cm', [['v1', 110], ['v2', 120], ['verifyclaim', 130]])
+    node.history['cambiatus.tk'] = rows('cambiatus.tk', [['issue', 130], ['transfer', 140]])
+    node.cut['cambiatus.cm'] = 2 // time_limit_exceeded_error after two rows
+    const r = reader(node)
+    // Each cut page vouches only for blocks before its last row, so 110 and 120 go out as
+    // soon as the next page proves them, and 130 goes out once, with the tk part.
+    const got = withActions(await poll(r))
+    assert.deepStrictEqual(got.map(b => b.n), [110, 120, 130, 140])
+    assert.deepStrictEqual(got[2].types, ['cambiatus.cm::verifyclaim', 'cambiatus.tk::issue'])
+  })
+
+  it('keeps paging a cut-short page that lies inside one block', async () => {
+    const node = fakeNode()
+    node.head = 200
+    node.history['cambiatus.cm'] = rows('cambiatus.cm', [['a', 110], ['b', 110], ['c', 110], ['d', 120]])
+    node.cut['cambiatus.cm'] = 1
+    const r = reader(node)
+    const got = withActions(await poll(r))
+    assert.deepStrictEqual(got.map(b => b.types.length), [3, 1])
+  })
+
+  it('throws when the node reports a time limit without a single row', async () => {
+    const node = fakeNode()
+    node.head = 200
+    node.history['cambiatus.cm'] = rows('cambiatus.cm', [['a', 110]])
+    node.history['cambiatus.tk'] = rows('cambiatus.tk', [['issue', 105]])
+    node.cut['cambiatus.cm'] = 0
+    const r = reader(node)
+    // cm vouched for nothing, so tk's block 105 must wait too
+    await quietly(async () => assert.deepStrictEqual(withActions(await poll(r)), []))
+    assert.strictEqual(r.seqPositions['cambiatus.tk'], 0)
+    node.cut = {}
+    assert.deepStrictEqual(withActions(await poll(r)).map(b => b.n), [105, 110])
+  })
+
+  it('throws when the node ignores pos instead of looping', async () => {
+    const node = fakeNode()
+    node.head = 200
+    node.history['cambiatus.cm'] = rows('cambiatus.cm', [['a', 110], ['b', 111]])
+    const r = reader(node)
+    r.seqPositions['cambiatus.cm'] = 1
+    const post = node.post
+    r._post = (path, body) => post(path, { ...body, pos: 0 })
+    await quietly(async () => assert.deepStrictEqual(withActions(await poll(r)), []))
+    assert.strictEqual(r.seqPositions['cambiatus.cm'], 1)
+  })
+
+  it('does not take an error body for an empty history when locating the start', async () => {
+    const r = reader(fakeNode())
+    r._post = async () => ({ code: 500, message: 'oops' })
+    await assert.rejects(r._findSeqForBlock('cambiatus.cm', 100), /no actions array/)
+    r._post = async (path, body) => body.pos === -1
+      ? { actions: [{ block_num: 500, account_action_seq: 9 }] }
+      : { code: 500 }
+    await assert.rejects(r._findSeqForBlock('cambiatus.cm', 100), /no actions array/)
   })
 })
