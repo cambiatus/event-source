@@ -1,5 +1,5 @@
 {
-  "_comment": "Columns event-source writes (transferSale). The same file is committed in the event-source repo. orders and order_items are inserted by the indexer, so any NOT NULL column without a default must be listed; products is only updated. batch_id and draw_outcome are written by S5a-es, only for batch offers.",
+  "_comment": "Columns event-source writes (transferSale). The same file is committed in the event-source repo. orders and order_items are inserted by the indexer, so any NOT NULL column without a default must be listed; products is only updated. batch_id and draw_outcome are written by S5a-es, only for batch offers. actions/validators: setactgroup (R2.1) updates actions and deletes validators by action_id.",
   "orders": {
     "insert": true,
     "columns": {
@@ -38,6 +38,22 @@
     "insert": false,
     "columns": {
       "units": "integer"
+    }
+  },
+  "actions": {
+    "insert": false,
+    "columns": {
+      "validator_role": "character varying",
+      "validator_role_seq": "bigint",
+      "validator_role_block": "integer",
+      "last_tx": "character varying",
+      "last_eos_account": "character varying"
+    }
+  },
+  "validators": {
+    "insert": false,
+    "columns": {
+      "action_id": "bigint"
     }
   }
 }
