@@ -141,7 +141,9 @@ async function createCommunity (db, payload, blockInfo) {
     const roleData = {
       community_id: symbol,
       name: 'member',
-      permissions: '{"invite", "claim", "order", "sell", "transfer"}',
+      // Same list, same order, as the contract's default member role
+      // (community.cpp `create`): the chain grants `verify` to every member.
+      permissions: '{"invite", "claim", "order", "verify", "sell", "transfer"}',
       created_tx: payload.transactionId,
       inserted_at: toUTC(new Date()),
       updated_at: toUTC(new Date())
