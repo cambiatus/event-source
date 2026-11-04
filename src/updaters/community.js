@@ -896,14 +896,19 @@ async function verifyClaim (db, payload, blockInfo, context) {
       payload.transactionId,
       payload.authorization[0].actor,
       toUTC(blockInfo.timestamp),
-      typeof payload.data.memo === 'string' && payload.data.memo !== '' ? payload.data.memo : null
+      voteMemo(payload.data.memo)
     ]
   )
+
+  // A cancelled claim stays cancelled: a replayed vote still lands its check row above, but
+  // must never recompute the status and un-cancel the claim.
+  if (claim.status === 'cancelled') return
 
   // Recompute the status as a pure function of the CURRENT checks for this claim (not an
   // increment), matching the contract's verifyclaim math byte-for-byte. Because it derives
   // purely from the persisted checks it is self-healing: any future reprocess converges a
-  // claim stuck at the wrong status in Postgres back to its true on-chain status.
+  // claim stuck at the wrong status in Postgres back to its true on-chain status (a cancelled
+  // claim excepted, see above).
   const positiveVotes = Number(await db.checks.count({ claim_id: claim.id, is_verified: true }))
   console.log(`Cambiatus >>> Claim Verification: Positive votes: ${positiveVotes}`)
 
@@ -938,6 +943,14 @@ async function verifyClaim (db, payload, blockInfo, context) {
   }
 }
 
+// Postgres `text` rejects a NUL byte, which would roll the block back and retry it forever.
+// Strip it, then apply the empty -> null rule.
+function voteMemo (memo) {
+  if (typeof memo !== 'string') return null
+  const cleaned = memo.replace(/\u0000/g, '')
+  return cleaned === '' ? null : cleaned
+}
+
 // Mirror of cambiatus.cm `cancelclaim`: the claimer withdraws a still-pending claim. The
 // contract closes the member's tally like a rejection without a vote; usages_left is untouched.
 async function cancelClaim (db, payload, blockInfo, _context) {
@@ -957,7 +970,11 @@ async function cancelClaim (db, payload, blockInfo, _context) {
     return
   }
 
-  await db.claims.update(claim.id, { status: 'cancelled' })
+  await db.claims.update(claim.id, {
+    status: 'cancelled',
+    last_tx: payload.transactionId,
+    last_eos_account: payload.authorization[0].actor
+  })
   await claimMirror.claimClosed(db, claim.claimer_id, claim.action_id, false, blockInfo.timestamp, blockInfo.blockNumber)
 }
 

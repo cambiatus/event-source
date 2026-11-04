@@ -102,6 +102,33 @@ describe('vote comments and cancel (vote-comments)', function () {
     assert.strictEqual((await db.checks.findOne({ claim_id: 1 })).memo, null)
   })
 
+  it('verifyClaim strips a NUL byte from the memo', async function () {
+    await vote({ memo: 'a\u0000b' })
+    assert.strictEqual((await db.checks.findOne({ claim_id: 1 })).memo, 'ab')
+  })
+
+  it('verifyClaim with a memo of only a NUL byte stores null', async function () {
+    await vote({ memo: '\u0000' })
+    assert.strictEqual((await db.checks.findOne({ claim_id: 1 })).memo, null)
+  })
+
+  it('a replayed verifyClaim never un-cancels a claim', async function () {
+    await cancel()
+    await vote({ memo: 'late' })
+
+    assert.strictEqual((await db.claims.findOne(1)).status, 'cancelled')
+    assert.strictEqual((await db.checks.findOne({ claim_id: 1 })).memo, 'late')
+  })
+
+  it('cancelClaim stamps last_tx and last_eos_account', async function () {
+    const { payload, blockInfo } = chainAction({ community_id: 'TST', claim_id: 1, claimer: 'claimer' })
+    await cancelClaim(db, payload, blockInfo, {})
+
+    const claim = await db.claims.findOne(1)
+    assert.strictEqual(claim.last_tx, payload.transactionId)
+    assert.strictEqual(claim.last_eos_account, 'claimer')
+  })
+
   it('cancelClaim sets the claim to cancelled and closes the tally', async function () {
     await db.member_action_claims.insert({ account: 'claimer', action_id: 7, pending: 1, approved: 2 })
     const blockInfo = await cancel()

@@ -20,7 +20,9 @@ CREATE TABLE public.claims (
   id bigint PRIMARY KEY,
   action_id bigint NOT NULL,
   claimer_id character varying NOT NULL,
-  status public.claim_status NOT NULL DEFAULT 'pending'
+  status public.claim_status NOT NULL DEFAULT 'pending',
+  last_tx character varying,
+  last_eos_account character varying
 );
 
 CREATE TABLE public.checks (
