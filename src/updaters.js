@@ -10,6 +10,7 @@ const {
   upsertAction,
   reward,
   verifyClaim,
+  cancelClaim,
   claimAction,
   upsertRole,
   assignRole,
@@ -126,6 +127,10 @@ const updaters = [
   {
     actionType: `${config.blockchain.contract.community}::verifyclaim`,
     updater: verifyClaim
+  },
+  {
+    actionType: `${config.blockchain.contract.community}::cancelclaim`,
+    updater: cancelClaim
   },
   {
     actionType: `${config.blockchain.contract.community}::claimaction`,
